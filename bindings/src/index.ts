@@ -164,6 +164,53 @@ export interface PrecisionPrediction {
 
 
 /**
+ * Composite protocol health status returned by `get_protocol_health`.
+ * 
+ * Designed for operators to poll a single endpoint instead of stitching
+ * together multiple read-only calls.
+ * 
+ * ## Status code → alert severity mapping
+ * 
+ * | code | label           | severity | meaning                                   |
+ * |------|-----------------|----------|-------------------------------------------|
+ * | 0    | HEALTHY         | none     | All subsystems nominal                    |
+ * | 1    | PAUSED          | critical | Contract is emergency-paused               |
+ * | 2    | ORACLE_STALE    | warning  | Oracle heartbeat is stale or offline      |
+ * | 3    | ROUND_STALE     | warning  | Round is past its end ledger but unresolved|
+ * | 4    | NO_ACTIVE_ROUND | info     | No round currently active (idle protocol) |
+ * | 5    | MULTIPLE_ISSUES | critical | Two or more issues detected simultaneously|
+ * 
+ * ## Phase codes (`active_round_phase`)
+ * 
+ * | phase | meaning                                           |
+ * |-------|---------------------------------------------------|
+ * | 0     | No active round                                   |
+ * | 1     | Betting open (`ledger < bet_end_ledger`)           |
+ * | 2     | Running / reveal window (`bet_end_ledger ≤ ledger < end_ledger`) |
+ * | 3     | Resolvable (`ledger ≥ end_ledger`)                |
+ * 
+ * ## Oracle status codes (`oracle_status`)
+ * 
+ * | code | meaning                                |
+ * |------|----------------------------------------|
+ * | 0    | Active (healthy heartbeat)             |
+ * | 1    | Degraded (heartbeat marked degraded)   |
+ * | 2    | Offline (heartbeat marked offline)     |
+ * | 3    | Unknown (no heartbeat record stored)   |
+ */
+export interface ProtocolHealthStatus {
+  paused: boolean;
+  oracle_live: boolean;
+  oracle_status: u32;
+  has_active_round: boolean;
+  active_round_phase: u32;
+  schema_version: u32;
+  ledger_sequence: u32;
+  ledger_timestamp: u64;
+  status_code: u32;
+}
+
+/**
  * Compact historical round summary persisted after resolve or cancel.
  * 
  * Designed for explorer/analytics queries without replaying events.
@@ -563,6 +610,12 @@ export interface Client {
   get_archived_round: ({round_id}: {round_id: u64}, options?: MethodOptions) => Promise<AssembledTransaction<Option<ArchivedRoundSummary>>>
 
   /**
+   * Construct and simulate a get_protocol_health transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
+   * Returns a composite protocol health status aggregating pause state, oracle liveness, active round phase, and schema version.
+   */
+  get_protocol_health: (options?: MethodOptions) => Promise<AssembledTransaction<ProtocolHealthStatus>>
+
+  /**
    * Construct and simulate a get_schema_version transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    * Returns the stored schema version. If unset, returns legacy version 1.
    */
@@ -771,7 +824,6 @@ export interface Client {
   apply_scheduled_changes: ({kind}: {kind: ConfigChangeKind}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
 
   cancel_config_change: ({kind}: {kind: ConfigChangeKind}, options?: MethodOptions) => Promise<AssembledTransaction<Result<void>>>
-
 }
 export class Client extends ContractClient {
   static async deploy<T = Client>(
@@ -804,6 +856,7 @@ export class Client extends ContractClient {
         "AAAAAQAAANFDb21wYWN0IGhpc3RvcmljYWwgcm91bmQgc3VtbWFyeSBwZXJzaXN0ZWQgYWZ0ZXIgcmVzb2x2ZSBvciBjYW5jZWwuCgpEZXNpZ25lZCBmb3IgZXhwbG9yZXIvYW5hbHl0aWNzIHF1ZXJpZXMgd2l0aG91dCByZXBsYXlpbmcgZXZlbnRzLgpgcHJpY2VfZmluYWxgIGlzIGAwYCBmb3IgYWRtaW4gY2FuY2VsbGF0aW9ucyAobm8gb3JhY2xlIHNldHRsZW1lbnQgcHJpY2UpLgAAAAAAAAAAAAAUQXJjaGl2ZWRSb3VuZFN1bW1hcnkAAAAJAAAAAAAAAARtb2RlAAAH0AAAAAlSb3VuZE1vZGUAAAAAAAAAAAAAEXBhcnRpY2lwYW50X2NvdW50AAAAAAAABAAAAAAAAAAJcG9vbF9kb3duAAAAAAAACwAAAAAAAAAHcG9vbF91cAAAAAALAAAAAAAAAAtwcmljZV9maW5hbAAAAAAKAAAAAAAAAAtwcmljZV9zdGFydAAAAAAKAAAAAAAAAAhyb3VuZF9pZAAAAAYAAAAAAAAAEXNldHRsZWRfYXRfbGVkZ2VyAAAAAAAABAAAAAAAAAAGc3RhdHVzAAAAAAfQAAAAElJvdW5kQXJjaGl2ZVN0YXR1cwAA",
         "AAAAAQAAAH5PcmFjbGUgbGl2ZW5lc3MgcmVjb3JkLCB1cGRhdGVkIGJ5IHRoZSBvcmFjbGUgc2VydmljZSBvbiBlYWNoIGhlYXJ0YmVhdCBjYWxsLgpgc3RhdHVzYDogMCA9IGFjdGl2ZSwgMSA9IGRlZ3JhZGVkLCAyID0gb2ZmbGluZS4AAAAAAAAAAAAVT3JhY2xlSGVhcnRiZWF0UmVjb3JkAAAAAAAAAgAAAAAAAAAGc3RhdHVzAAAAAAAEAAAAAAAAAAl0aW1lc3RhbXAAAAAAAAAG",
         "AAAABAAAABRDb250cmFjdCBlcnJvciB0eXBlcwAAAAAAAAANQ29udHJhY3RFcnJvcgAAAAAAADAAAAAlQ29udHJhY3QgaGFzIGFscmVhZHkgYmVlbiBpbml0aWFsaXplZAAAAAAAABJBbHJlYWR5SW5pdGlhbGl6ZWQAAAAAAAEAAAAtQWRtaW4gYWRkcmVzcyBub3Qgc2V0IC0gY2FsbCBpbml0aWFsaXplIGZpcnN0AAAAAAAAC0FkbWluTm90U2V0AAAAAAIAAAAuT3JhY2xlIGFkZHJlc3Mgbm90IHNldCAtIGNhbGwgaW5pdGlhbGl6ZSBmaXJzdAAAAAAADE9yYWNsZU5vdFNldAAAAAMAAAAiT25seSBhZG1pbiBjYW4gcGVyZm9ybSB0aGlzIGFjdGlvbgAAAAAAEVVuYXV0aG9yaXplZEFkbWluAAAAAAAABAAAACNPbmx5IG9yYWNsZSBjYW4gcGVyZm9ybSB0aGlzIGFjdGlvbgAAAAASVW5hdXRob3JpemVkT3JhY2xlAAAAAAAFAAAAJEJldCBhbW91bnQgbXVzdCBiZSBncmVhdGVyIHRoYW4gemVybwAAABBJbnZhbGlkQmV0QW1vdW50AAAABgAAABZObyBhY3RpdmUgcm91bmQgZXhpc3RzAAAAAAANTm9BY3RpdmVSb3VuZAAAAAAAAAcAAAAXUm91bmQgaGFzIGFscmVhZHkgZW5kZWQAAAAAClJvdW5kRW5kZWQAAAAAAAgAAAAdVXNlciBoYXMgaW5zdWZmaWNpZW50IGJhbGFuY2UAAAAAAAATSW5zdWZmaWNpZW50QmFsYW5jZQAAAAAJAAAAK1VzZXIgaGFzIGFscmVhZHkgcGxhY2VkIGEgYmV0IGluIHRoaXMgcm91bmQAAAAACkFscmVhZHlCZXQAAAAAAAoAAAAcQXJpdGhtZXRpYyBvdmVyZmxvdyBvY2N1cnJlZAAAAAhPdmVyZmxvdwAAAAsAAAATSW52YWxpZCBwcmljZSB2YWx1ZQAAAAAMSW52YWxpZFByaWNlAAAADAAAABZJbnZhbGlkIGR1cmF0aW9uIHZhbHVlAAAAAAAPSW52YWxpZER1cmF0aW9uAAAAAA0AAAAjSW52YWxpZCByb3VuZCBtb2RlIChtdXN0IGJlIDAgb3IgMSkAAAAAC0ludmFsaWRNb2RlAAAAAA4AAAAsV3JvbmcgcHJlZGljdGlvbiB0eXBlIGZvciBjdXJyZW50IHJvdW5kIG1vZGUAAAAWV3JvbmdNb2RlRm9yUHJlZGljdGlvbgAAAAAADwAAACRSb3VuZCBoYXMgbm90IHJlYWNoZWQgZW5kX2xlZGdlciB5ZXQAAAANUm91bmROb3RFbmRlZAAAAAAAABAAAAA1SW52YWxpZCBwcmljZSBzY2FsZSAobXVzdCByZXByZXNlbnQgNCBkZWNpbWFsIHBsYWNlcykAAAAAAAARSW52YWxpZFByaWNlU2NhbGUAAAAAAAARAAAAHk9yYWNsZSBkYXRhIGlzIHRvbyBvbGQgKFNUQUxFKQAAAAAAD1N0YWxlT3JhY2xlRGF0YQAAAAASAAAAMU9yYWNsZSBwYXlsb2FkIHJvdW5kX2lkIGRvZXNuJ3QgbWF0Y2ggQWN0aXZlUm91bmQAAAAAAAASSW52YWxpZE9yYWNsZVJvdW5kAAAAAAATAAAAOEFuIGFjdGl2ZSByb3VuZCBhbHJlYWR5IGV4aXN0cyBhbmQgY2Fubm90IGJlIG92ZXJ3cml0dGVuAAAAElJvdW5kQWxyZWFkeUFjdGl2ZQAAAAAAFAAAAC5BZG1pbiBhbmQgT3JhY2xlIGFkZHJlc3NlcyBjYW5ub3QgYmUgaWRlbnRpY2FsAAAAAAANQWRtaW5Jc09yYWNsZQAAAAAAABUAAAApQ29udHJhY3QgaXMgcGF1c2VkIGZvciBlbWVyZ2VuY3kgcmVjb3ZlcnkAAAAAAAAOQ29udHJhY3RQYXVzZWQAAAAAABYAAAA6T25lIG9yIG1vcmUgd2luZG93IHZhbHVlcyBleGNlZWQgY29uZmlndXJlZCBtYXhpbXVtIGJvdW5kcwAAAAAAEFdpbmRvd091dE9mUmFuZ2UAAAAXAAAAKU9yYWNsZSBwYXlsb2FkIHRpbWVzdGFtcCBpcyBpbiB0aGUgZnV0dXJlAAAAAAAAEEZ1dHVyZU9yYWNsZURhdGEAAAAYAAAAPUFyaXRobWV0aWMgb3ZlcmZsb3cgaW4gcGF5b3V0IGFjY3VtdWxhdGlvbiDigJQgbm8gZnVuZHMgbW92ZWQAAAAAAAAOUGF5b3V0T3ZlcmZsb3cAAAAAABkAAAAvUm91bmQgaGFzIGJlZW4gY2FuY2VsbGVkIGFuZCBjYW5ub3QgYmUgcmVzb2x2ZWQAAAAADlJvdW5kQ2FuY2VsbGVkAAAAAAAaAAAAP1JvdW5kIGNhbm5vdCBiZSBjYW5jZWxsZWQgKG5vIGFjdGl2ZSByb3VuZCBvciBhbHJlYWR5IHJlc29sdmVkKQAAAAATUm91bmROb3RDYW5jZWxsYWJsZQAAAAAbAAAAL0JldCBhbW91bnQgZXhjZWVkcyB0aGUgY29uZmlndXJlZCBtYXhpbXVtIHN0YWtlAAAAAA9TdGFrZUV4Y2VlZHNNYXgAAAAAHAAAAENVc2VyJ3MgY3VtdWxhdGl2ZSBleHBvc3VyZSBpbiB0aGlzIHJvdW5kIGV4Y2VlZHMgdGhlIGNvbmZpZ3VyZWQgY2FwAAAAABNFeHBvc3VyZUNhcEV4Y2VlZGVkAAAAAB0AAAA9UGVuZGluZyB3aW5uaW5ncyBhY2N1bXVsYXRpb24gd291bGQgZXhjZWVkIHRoZSBjb25maWd1cmVkIGNhcAAAAAAAABpQZW5kaW5nV2lubmluZ3NDYXBFeGNlZWRlZAAAAAAAHgAAAC5TdGFydCBwcmljZSBpcyBiZWxvdyB0aGUgbWluaW11bSBhbGxvd2VkIHZhbHVlAAAAAAAQU3RhcnRQcmljZVRvb0xvdwAAAB8AAAAtU3RhcnQgcHJpY2UgZXhjZWVkcyB0aGUgbWF4aW11bSBhbGxvd2VkIHZhbHVlAAAAAAAAEVN0YXJ0UHJpY2VUb29IaWdoAAAAAAAAIAAAAEFPcmFjbGUgcGF5bG9hZCBub25jZSB3YXMgYWxyZWFkeSBjb25zdW1lZCBmb3IgdGhpcyByb3VuZCAocmVwbGF5KQAAAAAAABFPcmFjbGVOb25jZVJldXNlZAAAAAAAACEAAABTUm91bmQgaGFzIGZld2VyIHBhcnRpY2lwYW50cyB0aGFuIHRoZSBjb25maWd1cmVkIG1pbmltdW0gZm9yIGNvbXBldGl0aXZlIHNldHRsZW1lbnQAAAAAGEluc3VmZmljaWVudFBhcnRpY2lwYW50cwAAACIAAABETWluaW11bSBwYXJ0aWNpcGFudHMgdmFsdWUgaXMgb3V0IG9mIHZhbGlkIHJhbmdlIChtdXN0IGJlIDHigJMxMDAwMCkAAAAWSW52YWxpZE1pblBhcnRpY2lwYW50cwAAAAAAIwAAADxPcmFjbGUgaGVhcnRiZWF0IHN0YXR1cyBpcyBvdXQgb2YgcmFuZ2UgKG11c3QgYmUgMCwgMSwgb3IgMikAAAATSW52YWxpZE9yYWNsZVN0YXR1cwAAAAAkAAAASU9yYWNsZSBzdGFsZSB0aHJlc2hvbGQgaXMgb3V0IG9mIHZhbGlkIHJhbmdlIChtdXN0IGJlIDYw4oCTODY0MDAgc2Vjb25kcykAAAAAAAAVSW52YWxpZFN0YWxlVGhyZXNob2xkAAAAAAAAJQAAADFPcmFjbGUgbWF4IGRldmlhdGlvbiBicHMgaXMgaW52YWxpZCAobXVzdCBiZSA+IDApAAAAAAAAGUludmFsaWRPcmFjbGVEZXZpYXRpb25CcHMAAAAAAAAmAAAAN09yYWNsZSBmaW5hbCBwcmljZSBkZXZpYXRlcyBiZXlvbmQgY29uZmlndXJlZCB0aHJlc2hvbGQAAAAAF09yYWNsZURldmlhdGlvbkV4Y2VlZGVkAAAAACcAAABGU3RvcmVkIHNjaGVtYSB2ZXJzaW9uIGlzIHVua25vd24gb3IgdW5zdXBwb3J0ZWQgYnkgdGhpcyBjb250cmFjdCBidWlsZAAAAAAAGFVuc3VwcG9ydGVkU2NoZW1hVmVyc2lvbgAAACgAAAA3TWlncmF0aW9uIHBhdGggaXMgaW52YWxpZCBmb3IgdGhlIHN0b3JlZCBzY2hlbWEgdmVyc2lvbgAAAAAUSW52YWxpZE1pZ3JhdGlvblBhdGgAAAApAAAALE1pZ3JhdGlvbiBjYW5ub3QgcnVuIHdoaWxlIGEgcm91bmQgaXMgYWN0aXZlAAAAFE1pZ3JhdGlvbkFjdGl2ZVJvdW5kAAAAKgAAAC1Db21taXRtZW50IGZvciBwcmVjaXNpb24gcHJlZGljdGlvbiBub3QgZm91bmQAAAAAAAASQ29tbWl0bWVudE5vdEZvdW5kAAAAAAArAAAALlByZWNpc2lvbiBwcmVkaWN0aW9uIGhhcyBhbHJlYWR5IGJlZW4gcmV2ZWFsZWQAAAAAAA9BbHJlYWR5UmV2ZWFsZWQAAAAALAAAADdBdHRlbXB0ZWQgdG8gcmV2ZWFsIHByZWRpY3Rpb24gb3V0c2lkZSB0aGUgdmFsaWQgd2luZG93AAAAABNJbnZhbGlkUmV2ZWFsV2luZG93AAAAAC0AAAA2UmV2ZWFsZWQgcHJlZGljdGlvbiBoYXNoIGRvZXMgbm90IG1hdGNoIGNvbW1pdHRlZCBoYXNoAAAAAAAMSGFzaE1pc21hdGNoAAAALgAAADpQcmVjaXNpb24gcm91bmQgaGFzIHJlYWNoZWQgdGhlIGNvbmZpZ3VyZWQgcGFydGljaXBhbnQgY2FwAAAAAAAfUHJlY2lzaW9uUGFydGljaXBhbnRDYXBFeGNlZWRlZAAAAAAvAAAAPVByZWNpc2lvbiBwYXJ0aWNpcGFudCBjYXAgaXMgb3V0IG9mIHJhbmdlIChtdXN0IGJlIDHigJMxMDAwMCkAAAAAAAAeSW52YWxpZFByZWNpc2lvblBhcnRpY2lwYW50Q2FwAAAAAAAw",
+        "AAAAAQAAAAAAAAAUUHJvdG9jb2xIZWFsdGhTdGF0dXMAAAAJAAAAAAAAAAZwYXVzZWQAAAAAAAEAAAAAAAAAC29yYWNsZV9saXZlAAAAAAEAAAAAAAAADW9yYWNsZV9zdGF0dXMAAAAAAAAEAAAAAAAAABBoYXNfYWN0aXZlX3JvdW5kAAAAAQAAAAAAAAASYWN0aXZlX3JvdW5kX3BoYXNlAAAAAAAEAAAAAAAAAA5zY2hlbWFfdmVyc2lvbgAAAAAABAAAAAAAAAAPbGVkZ2VyX3NlcXVlbmNlAAAAAAQAAAAAAAAAEGxlZGdlcl90aW1lc3RhbXAAAAAGAAAAAAAAAAtzdGF0dXNfY29kZQAAAAAE",
         "AAAAAAAAABtSZXR1cm5zIHVzZXIncyB2WExNIGJhbGFuY2UAAAAAB2JhbGFuY2UAAAAAAQAAAAAAAAAEdXNlcgAAABMAAAABAAAACw==",
         "AAAAAAAAAAAAAAAJZ2V0X2FkbWluAAAAAAAAAAAAAAEAAAPoAAAAEw==",
         "AAAAAAAAADBSZXR1cm5zIHdoZXRoZXIgdGhlIGNvbnRyYWN0IGlzIGN1cnJlbnRseSBwYXVzZWQAAAAJaXNfcGF1c2VkAAAAAAAAAAAAAAEAAAAB",
@@ -854,7 +907,8 @@ export class Client extends ContractClient {
         "AAAAAAAAAJdBcm1zIGEgb25lLXNob3Qgb3ZlcnJpZGUgdG8gYnlwYXNzIGRldmlhdGlvbiBjaGVja3MgZm9yIHRoZSBuZXh0IHNldHRsZW1lbnQgKGFkbWluIG9ubHkpLgpUaGUgZmxhZyBpcyBhdXRvbWF0aWNhbGx5IGNsZWFyZWQgYWZ0ZXIgYSBzZXR0bGVtZW50IHVzZXMgaXQuAAAAAB1hcm1fb3JhY2xlX2RldmlhdGlvbl9vdmVycmlkZQAAAAAAAAAAAAABAAAD6QAAA+0AAAAAAAAH0AAAAA1Db250cmFjdEVycm9yAAAA",
         "AAAAAAAAAOpSZXR1cm5zIHVzZXIncyBwcmVjaXNpb24gcHJlZGljdGlvbiBpbiB0aGUgY3VycmVudCByb3VuZCAoUHJlY2lzaW9uIG1vZGUpLgoKUmVhZHMgYSBzaW5nbGUgY29tcG9zaXRlIGtleSBgRGF0YUtleTo6UHJlY2lzaW9uUG9zaXRpb24ocm91bmRfaWQsIHVzZXIpYCDigJQgTygxKS4KRmFsbHMgYmFjayB0byBsZWdhY3kgYFByZWNpc2lvblBvc2l0aW9uc2AgbWFwIGZvciBtaWdyYXRpb24gY29tcGF0aWJpbGl0eS4AAAAAAB1nZXRfdXNlcl9wcmVjaXNpb25fcHJlZGljdGlvbgAAAAAAAAEAAAAAAAAABHVzZXIAAAATAAAAAQAAA+gAAAfQAAAAE1ByZWNpc2lvblByZWRpY3Rpb24A",
         "AAAAAAAAAEpSZXR1cm5zIHRoZSBjb25maWd1cmVkIFByZWNpc2lvbiBwYXJ0aWNpcGFudCBjYXAsIG9yIHRoZSBkZWZhdWx0IGlmIHVuc2V0LgAAAAAAHmdldF9tYXhfcHJlY2lzaW9uX3BhcnRpY2lwYW50cwAAAAAAAAAAAAEAAAAE",
-        "AAAAAAAAALBTZXRzIHRoZSBtYXhpbXVtIHBhcnRpY2lwYW50IGNvdW50IGZvciBQcmVjaXNpb24gcm91bmRzIChhZG1pbiBvbmx5KS4KVGhlIHZhbHVlIG11c3QgYmUgaW4gdGhlIHJhbmdlIDEuLj0xMF8wMDAuIFVuc2V0IGNvbnRyYWN0cyB1c2UgdGhlCnByb3RvY29sIGRlZmF1bHQgb2YgMV8wMDAgcGFydGljaXBhbnRzLgAAAB5zZXRfbWF4X3ByZWNpc2lvbl9wYXJ0aWNpcGFudHMAAAAAAAEAAAAAAAAAA21heAAAAAAEAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==" ]),
+        "AAAAAAAAALBTZXRzIHRoZSBtYXhpbXVtIHBhcnRpY2lwYW50IGNvdW50IGZvciBQcmVjaXNpb24gcm91bmRzIChhZG1pbiBvbmx5KS4KVGhlIHZhbHVlIG11c3QgYmUgaW4gdGhlIHJhbmdlIDEuLj0xMF8wMDAuIFVuc2V0IGNvbnRyYWN0cyB1c2UgdGhlCnByb3RvY29sIGRlZmF1bHQgb2YgMV8wMDAgcGFydGljaXBhbnRzLgAAAB5zZXRfbWF4X3ByZWNpc2lvbl9wYXJ0aWNpcGFudHMAAAAAAAEAAAAAAAAAA21heAAAAAAEAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAANQ29udHJhY3RFcnJvcgAAAA==",
+        "AAAAAAAAAAAAAAATZ2V0X3Byb3RvY29sX2hlYWx0aAAAAAAAAAAH3Q==" ]),
       options
     )
   }
@@ -918,6 +972,7 @@ export class Client extends ContractClient {
         schedule_oracle_deviation_bps: this.txFromJSON<Result<void>>,
         get_pending_config_change: this.txFromJSON<Option<PendingConfigChange>>,
         apply_scheduled_changes: this.txFromJSON<Result<void>>,
-        cancel_config_change: this.txFromJSON<Result<void>>
+        cancel_config_change: this.txFromJSON<Result<void>>,
+        get_protocol_health: this.txFromJSON<ProtocolHealthStatus>
   }
 }

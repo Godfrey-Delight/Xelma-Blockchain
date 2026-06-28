@@ -6,7 +6,7 @@ use crate::types::{ConfigChangeKind, ConfigChangePayload};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger as _},
-    Address, Env, TryIntoVal,
+    Address, Env, Symbol, TryIntoVal,
 };
 
 /// Must match `CONFIG_TIMELOCK_LEDGERS` in contract.rs.
@@ -362,7 +362,7 @@ fn test_protocol_fee_timelock_full_cycle() {
             let (_contract, topics, _data) = e;
             topics.len() == 2
                 && topics.get(0).unwrap().try_into_val(&env) == Ok(symbol_short!("protocol"))
-                && topics.get(1).unwrap().try_into_val(&env) == Ok(symbol_short!("fee_bps_set"))
+                && topics.get(1).unwrap().try_into_val(&env) == Ok(Symbol::new(&env, "fee_bps_set"))
         })
         .count();
     assert!(ev_count >= 1, "fee_bps_set event must be emitted on apply");

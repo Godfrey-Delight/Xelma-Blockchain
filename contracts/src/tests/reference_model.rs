@@ -1,4 +1,5 @@
 //! Simplified reference model for contract state used in invariant testing.
+extern crate std;
 use std::collections::HashMap;
 use soroban_sdk::Address;
 

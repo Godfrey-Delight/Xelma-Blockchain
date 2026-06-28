@@ -1,9 +1,8 @@
 //! Contract error types for the XLM Price Prediction Market.
 
-use soroban_sdk::contracterror;
+use soroban_sdk::{xdr::ScErrorType, Error};
 
 /// Contract error types
-#[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum ContractError {
@@ -111,4 +110,96 @@ pub enum ContractError {
     InvalidProtocolFeeBps = 51,
     /// Treasury withdrawal would underflow the accumulated treasury balance
     FeeTreasuryUnderflow = 52,
+}
+
+impl From<ContractError> for Error {
+    fn from(e: ContractError) -> Self {
+        Error::from_contract_error(e as u32)
+    }
+}
+
+impl From<&ContractError> for Error {
+    fn from(e: &ContractError) -> Self {
+        Error::from_contract_error(*e as u32)
+    }
+}
+
+fn to_contract_error(code: u32) -> Option<ContractError> {
+    match code {
+        1 => Some(ContractError::AlreadyInitialized),
+        2 => Some(ContractError::AdminNotSet),
+        3 => Some(ContractError::OracleNotSet),
+        4 => Some(ContractError::UnauthorizedAdmin),
+        5 => Some(ContractError::UnauthorizedOracle),
+        6 => Some(ContractError::InvalidBetAmount),
+        7 => Some(ContractError::NoActiveRound),
+        8 => Some(ContractError::RoundEnded),
+        9 => Some(ContractError::InsufficientBalance),
+        10 => Some(ContractError::AlreadyBet),
+        11 => Some(ContractError::Overflow),
+        12 => Some(ContractError::InvalidPrice),
+        13 => Some(ContractError::InvalidDuration),
+        14 => Some(ContractError::InvalidMode),
+        15 => Some(ContractError::WrongModeForPrediction),
+        16 => Some(ContractError::RoundNotEnded),
+        17 => Some(ContractError::InvalidPriceScale),
+        18 => Some(ContractError::StaleOracleData),
+        19 => Some(ContractError::InvalidOracleRound),
+        20 => Some(ContractError::RoundAlreadyActive),
+        21 => Some(ContractError::AdminIsOracle),
+        22 => Some(ContractError::ContractPaused),
+        23 => Some(ContractError::WindowOutOfRange),
+        24 => Some(ContractError::FutureOracleData),
+        25 => Some(ContractError::PayoutOverflow),
+        26 => Some(ContractError::RoundCancelled),
+        27 => Some(ContractError::RoundNotCancellable),
+        28 => Some(ContractError::StakeExceedsMax),
+        29 => Some(ContractError::ExposureCapExceeded),
+        30 => Some(ContractError::PendingWinningsCapExceeded),
+        31 => Some(ContractError::StartPriceTooLow),
+        32 => Some(ContractError::StartPriceTooHigh),
+        33 => Some(ContractError::OracleNonceReused),
+        34 => Some(ContractError::InsufficientParticipants),
+        35 => Some(ContractError::InvalidMinParticipants),
+        36 => Some(ContractError::InvalidOracleStatus),
+        37 => Some(ContractError::InvalidStaleThreshold),
+        38 => Some(ContractError::InvalidPrecisionParticipantCap),
+        39 => Some(ContractError::PrecisionParticipantCapExceeded),
+        40 => Some(ContractError::InvalidOracleDeviationBps),
+        41 => Some(ContractError::OracleDeviationExceeded),
+        42 => Some(ContractError::UnsupportedSchemaVersion),
+        43 => Some(ContractError::InvalidMigrationPath),
+        44 => Some(ContractError::MigrationActiveRound),
+        45 => Some(ContractError::CommitmentNotFound),
+        46 => Some(ContractError::AlreadyRevealed),
+        47 => Some(ContractError::InvalidRevealWindow),
+        48 => Some(ContractError::HashMismatch),
+        49 => Some(ContractError::OracleNetworkMismatch),
+        50 => Some(ContractError::OracleContractMismatch),
+        51 => Some(ContractError::InvalidProtocolFeeBps),
+        52 => Some(ContractError::FeeTreasuryUnderflow),
+        _ => None,
+    }
+}
+
+impl TryFrom<&Error> for ContractError {
+    type Error = Error;
+    fn try_from(e: &Error) -> Result<Self, Self::Error> {
+        if e.is_type(ScErrorType::Contract) {
+            to_contract_error(e.get_code()).ok_or(*e)
+        } else {
+            Err(*e)
+        }
+    }
+}
+
+impl TryFrom<Error> for ContractError {
+    type Error = Error;
+    fn try_from(e: Error) -> Result<Self, Self::Error> {
+        if e.is_type(ScErrorType::Contract) {
+            to_contract_error(e.get_code()).ok_or(e)
+        } else {
+            Err(e)
+        }
+    }
 }

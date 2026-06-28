@@ -1,4 +1,5 @@
 //! Differential invariant test harness using a reference model.
+extern crate std;
 
 use proptest::prelude::*;
 use soroban_sdk::{Address, Env};

@@ -2,7 +2,7 @@
 
 use soroban_sdk::xdr::ToXdr;
 use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, Map, Vec,
+    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, Map, Symbol, Vec,
 };
 
 use crate::errors::ContractError;
@@ -815,7 +815,7 @@ impl VirtualTokenContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("protocol"), symbol_short!("fee_withdrawn")),
+            (Symbol::new(&env, "protocol"), Symbol::new(&env, "fee_withdrawn")),
             (recipient, amount, new_treasury),
         );
 
@@ -3057,7 +3057,7 @@ impl VirtualTokenContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("protocol"), symbol_short!("fee_collected")),
+            (Symbol::new(&env, "protocol"), Symbol::new(&env, "fee_collected")),
             (round_id, fee_amount, new_treasury, bps_value),
         );
 
@@ -3268,7 +3268,7 @@ impl VirtualTokenContract {
                 }
                 #[allow(deprecated)]
                 env.events().publish(
-                    (symbol_short!("protocol"), symbol_short!("fee_bps_set")),
+                    (Symbol::new(&env, "protocol"), Symbol::new(&env, "fee_bps_set")),
                     (bps.clone(),),
                 );
             }

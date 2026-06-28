@@ -7,7 +7,7 @@ use crate::types::{RoundArchiveStatus, RoundMode};
 use soroban_sdk::{
     symbol_short,
     testutils::{Address as _, Events, Ledger as _},
-    Address, Env, Map, TryIntoVal, Vec,
+    Address, Env, Map, Symbol, TryIntoVal, Vec,
 };
 
 #[test]
@@ -2194,7 +2194,7 @@ fn count_outcome_loss_events(env: &Env) -> u32 {
 /// Helper: collects every decoded loss event payload for assertions.
 fn collect_outcome_loss_events(
     env: &Env,
-) -> Vec<(soroban_sdk::Address, u64, u32, soroban_sdk::I128, u32, u128)> {
+) -> Vec<(soroban_sdk::Address, u64, u32, i128, u32, u128)> {
     env.events()
         .all()
         .iter()
@@ -2210,7 +2210,7 @@ fn collect_outcome_loss_events(
                 soroban_sdk::Address,
                 u64,
                 u32,
-                soroban_sdk::I128,
+                i128,
                 u32,
                 u128,
             )>(env)
@@ -2275,7 +2275,7 @@ fn test_outcome_loss_event_updown_indexed_path() {
     }
 
     // Verify both losers are represented, each with their losing side.
-    let mut by_addr: std::collections::HashMap<soroban_sdk::String, (soroban_sdk::I128, u32)> =
+    let mut by_addr: std::collections::HashMap<soroban_sdk::String, (i128, u32)> =
         std::collections::HashMap::new();
     for (user, _round_id, _mode, amount, side, _price) in &losses {
         by_addr.insert(user.to_string(), (*amount, *side));
@@ -2428,7 +2428,7 @@ fn test_outcome_loss_event_precision_indexed_path() {
         assert_eq!(*side, 0u32, "`side` is unused in Precision mode");
     }
 
-    let mut by_addr: std::collections::HashMap<soroban_sdk::String, (soroban_sdk::I128, u128)> =
+    let mut by_addr: std::collections::HashMap<soroban_sdk::String, (i128, u128)> =
         std::collections::HashMap::new();
     for (user, _, _, amount, _, price) in &losses {
         by_addr.insert(user.to_string(), (*amount, *price));
@@ -2508,7 +2508,7 @@ fn test_outcome_loss_event_precision_legacy_path() {
 
     // 2 losers => 2 loss events.
     assert_eq!(count_outcome_loss_events(&env), 2);
-    let losses: std::collections::HashMap<soroban_sdk::String, (soroban_sdk::I128, u128)> =
+    let losses: std::collections::HashMap<soroban_sdk::String, (i128, u128)> =
         collect_outcome_loss_events(&env)
             .iter()
             .map(|(u, _, _, amount, _, price)| (u.to_string(), (*amount, *price)))
@@ -2823,7 +2823,7 @@ fn test_archive_retention_prunes_oldest() {
 
 fn collect_protocol_fee_events(
     env: &Env,
-) -> Vec<(u64, soroban_sdk::I128, soroban_sdk::I128, u32)> {
+) -> Vec<(u64, i128, i128, u32)> {
     env.events()
         .all()
         .iter()
@@ -2831,11 +2831,11 @@ fn collect_protocol_fee_events(
             let (_contract, topics, data) = e;
             if topics.len() != 2
                 || topics.get(0).unwrap().try_into_val(env) != Ok(symbol_short!("protocol"))
-                || topics.get(1).unwrap().try_into_val(env) != Ok(symbol_short!("fee_collected"))
+                || topics.get(1).unwrap().try_into_val(env) != Ok(Symbol::new(env, "fee_collected"))
             {
                 return None;
             }
-            data.try_into_val::<(u64, soroban_sdk::I128, soroban_sdk::I128, u32)>(env)
+            data.try_into_val::<(u64, i128, i128, u32)>(env)
                 .ok()
         })
         .collect()
@@ -2849,14 +2849,14 @@ fn count_protocol_fee_events(env: &Env) -> u32 {
             let (_contract, topics, _data) = e;
             topics.len() == 2
                 && topics.get(0).unwrap().try_into_val(env) == Ok(symbol_short!("protocol"))
-                && topics.get(1).unwrap().try_into_val(env) == Ok(symbol_short!("fee_collected"))
+                && topics.get(1).unwrap().try_into_val(env) == Ok(Symbol::new(env, "fee_collected"))
         })
         .count() as u32
 }
 
 /// Build a deterministic Vector of user-side pre-resolution `("outcome","loss")` events
 /// helper to keep the conservation-test bodies short.
-fn sum_pending_payouts(env: &Env, users: &[soroban_sdk::Address]) -> soroban_sdk::I128 {
+fn sum_pending_payouts(env: &Env, users: &[soroban_sdk::Address]) -> i128 {
     let mut total: i128 = 0;
     env.as_contract(&env.current_contract_address(), || {
         for u in users {
@@ -3211,7 +3211,7 @@ fn test_protocol_fee_not_collected_on_refund_paths() {
     // Price-unchanged refunds must NOT deduct the fee from treasury even when
     // the fee is enabled. The user's stake is returned 100%; no fee events
     // are emitted on any refund path.
-    struct Case { up: bool; }
+    struct Case { up: bool, }
     let _cases = [Case { up: true }, Case { up: false }];
     let env = Env::default();
     let contract_id = env.register(VirtualTokenContract, ());
