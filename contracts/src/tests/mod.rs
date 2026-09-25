@@ -37,6 +37,7 @@ mod overflow_tests;
 mod precision_payout_overflow;
 mod pause;
 mod pause_policy_matrix;
+mod pagination_gas_guards;
 mod pending_winnings_expiry;
 mod policy_gate;
 mod property_invariants;
@@ -54,4 +55,3 @@ mod insurance;
 mod precision_scoring;
 mod simulate_tests;
 mod simulate_parity_tests;
-
