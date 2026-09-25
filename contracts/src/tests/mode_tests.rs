@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for round mode flag and separate prediction storage.
 
 use super::config_helpers::{apply_max_stake, apply_max_user_exposure, apply_windows};
@@ -805,7 +806,7 @@ fn test_windows_update_event() {
     assert_eq!(windows_events, 1, "Should have 1 windows updated event");
 }
 
-// ─── Economic controls for precision mode (Issue #113) ────────────────────────
+// â”€â”€â”€ Economic controls for precision mode (Issue #113) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_precision_prediction_exceeds_max_stake_fails() {
@@ -843,7 +844,7 @@ fn test_precision_prediction_at_max_stake_boundary_succeeds() {
     apply_max_stake(&env, &client, Some(100_0000000i128));
     client.create_round(&1_0000000, &Some(1));
 
-    // Exactly at cap — must succeed
+    // Exactly at cap â€” must succeed
     client.place_precision_prediction(&user, &100_0000000, &2297u128);
     assert_eq!(client.balance(&user), 900_0000000);
 }
@@ -881,7 +882,7 @@ fn test_caps_disabled_precision_prediction_succeeds() {
     env.mock_all_auths();
     client.initialize(&admin, &oracle);
     client.mint_initial(&user);
-    // No caps configured — large bet allowed
+    // No caps configured â€” large bet allowed
     client.create_round(&1_0000000, &Some(1));
     client.place_precision_prediction(&user, &500_0000000, &2297u128);
     assert_eq!(client.balance(&user), 500_0000000);

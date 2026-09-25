@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Benchmark-style tests for the indexed storage layout.
 //!
 //! These tests assert on the *operation count* of each core path
@@ -32,9 +33,9 @@ fn setup() -> (Env, Address, VirtualTokenContractClient<'static>) {
     (env, contract_id, client)
 }
 
-// ─── place_bet: O(1) per-user key write ──────────────────────────────────────
+// â”€â”€â”€ place_bet: O(1) per-user key write â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/// Each place_bet writes exactly one `DataKey::Position(round_id, user)` —
+/// Each place_bet writes exactly one `DataKey::Position(round_id, user)` â€”
 /// no full-map deserialisation. Verified by reading the per-user key directly.
 #[test]
 fn bench_place_bet_writes_single_user_key() {
@@ -54,7 +55,7 @@ fn bench_place_bet_writes_single_user_key() {
     client.place_bet(&alice, &100_0000000, &BetSide::Up);
     client.place_bet(&bob, &200_0000000, &BetSide::Down);
 
-    // Each user has their own composite key — O(1) read independent of N
+    // Each user has their own composite key â€” O(1) read independent of N
     env.as_contract(&contract_id, || {
         let alice_pos: UserPosition = env
             .storage()
@@ -83,7 +84,7 @@ fn bench_place_bet_writes_single_user_key() {
 }
 
 /// Operation-count assertion: after N bets, exactly N participant entries and
-/// N indexed position keys exist — no per-bet O(N) map serialisation.
+/// N indexed position keys exist â€” no per-bet O(N) map serialisation.
 #[test]
 fn bench_place_bet_op_count_assertion() {
     let (env, contract_id, client) = setup();
@@ -133,7 +134,7 @@ fn bench_place_bet_op_count_assertion() {
     });
 }
 
-// ─── resolve_round: cleanup of all per-user keys ─────────────────────────────
+// â”€â”€â”€ resolve_round: cleanup of all per-user keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// resolve_round must remove every per-user key + the participant list.
 /// Verified by inspecting raw storage after resolution.
@@ -190,7 +191,7 @@ fn bench_resolve_cleans_indexed_keys() {
     });
 }
 
-// ─── large-round scenario: 60 participants ──────────────────────────────────
+// â”€â”€â”€ large-round scenario: 60 participants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Large-round correctness + performance: 60 participants resolve correctly,
 /// payouts match the proportional formula, and storage is fully cleaned up.
@@ -210,7 +211,7 @@ fn bench_large_round_resolves_correctly() {
     client.create_round(&1_0000000u128, &None);
     let round = client.get_active_round().unwrap();
 
-    // Half UP, half DOWN — equal amounts so the math is easy to verify
+    // Half UP, half DOWN â€” equal amounts so the math is easy to verify
     for (i, u) in users.iter().enumerate() {
         let side = if i % 2 == 0 {
             BetSide::Up
@@ -225,7 +226,7 @@ fn bench_large_round_resolves_correctly() {
     assert_eq!(active.pool_up, 10_0000000 * half);
     assert_eq!(active.pool_down, 10_0000000 * half);
 
-    // Resolve — UP wins
+    // Resolve â€” UP wins
     env.ledger().with_mut(|li| li.sequence_number = 12);
     client.resolve_round(&OraclePayload {
         price: 2_0000000,
@@ -264,7 +265,7 @@ fn bench_large_round_resolves_correctly() {
         }
     });
 
-    // All winners can claim — each claim is O(1)
+    // All winners can claim â€” each claim is O(1)
     let mut total_claimed: i128 = 0;
     for (i, u) in users.iter().enumerate() {
         if i % 2 == 0 {
@@ -274,7 +275,7 @@ fn bench_large_round_resolves_correctly() {
     assert_eq!(total_claimed, 20_0000000 * half);
 }
 
-// ─── precision mode: indexed keys ────────────────────────────────────────────
+// â”€â”€â”€ precision mode: indexed keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Precision mode also uses per-user keys + participant list.
 #[test]
@@ -317,7 +318,7 @@ fn bench_precision_mode_indexed_keys() {
         assert_eq!(participants.len(), 3);
     });
 
-    // Resolve — bob's guess (600) is closest to 580
+    // Resolve â€” bob's guess (600) is closest to 580
     env.ledger().with_mut(|li| li.sequence_number = 12);
     client.resolve_round(&OraclePayload {
         price: 580u128,

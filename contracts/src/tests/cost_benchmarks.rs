@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Gas/cost benchmark baselines with regression guardrails (Issue #121).
 //!
 //! These benchmarks measure the host CPU-instruction and memory cost of each
@@ -11,7 +12,7 @@
 //! ## Baselines and tolerances
 //!
 //! Each ceiling is anchored to the standard Soroban per-transaction resource
-//! budget — every critical path must fit inside a single on-chain transaction.
+//! budget â€” every critical path must fit inside a single on-chain transaction.
 //! See `contracts/BENCHMARKS.md` for the recorded baselines and the procedure
 //! for tightening them toward true regression detection. Run locally with:
 //!
@@ -31,7 +32,7 @@ use soroban_sdk::{
     Address, Env,
 };
 
-// ─── Baseline ceilings (CPU instructions, memory bytes) ──────────────────────
+// â”€â”€â”€ Baseline ceilings (CPU instructions, memory bytes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Anchored to the standard Soroban per-transaction resource budget: every
 // critical path must comfortably fit inside one on-chain transaction. A path
 // that breaches these ceilings is a hard regression (it would fail on-chain).
@@ -181,7 +182,7 @@ fn bench_cost_claim_winnings() {
 
     env.ledger().with_mut(|li| li.sequence_number = 12);
     client.resolve_round(&OraclePayload {
-        price: 2_0000000, // UP wins → alice has pending winnings
+        price: 2_0000000, // UP wins â†’ alice has pending winnings
         timestamp: env.ledger().timestamp(),
         round_id: round.start_ledger,
         nonce: 1u64,

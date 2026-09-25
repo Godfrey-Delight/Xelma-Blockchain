@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Security tests for Oracle data freshness and round validation.
 
 use super::config_helpers::{apply_oracle_max_deviation_bps, apply_oracle_stale_threshold};
@@ -139,7 +140,7 @@ fn test_resolve_round_future_timestamp() {
     assert_eq!(result, Err(Ok(ContractError::FutureOracleData)));
 }
 
-// ─── Cancel-round security tests (Issue #111) ────────────────────────────────
+// â”€â”€â”€ Cancel-round security tests (Issue #111) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_cancelled_round_cannot_be_resolved() {
@@ -209,7 +210,7 @@ fn test_cancel_round_without_admin_auth_fails() {
     assert!(result.is_err());
 }
 
-// ─── Oracle nonce replay protection (Issue #118) ─────────────────────────────
+// â”€â”€â”€ Oracle nonce replay protection (Issue #118) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// A nonce already consumed for a round must be rejected on re-submission.
 /// We seed the consumed-nonce marker to simulate a prior submission, then
@@ -292,7 +293,7 @@ fn test_resolve_round_unique_nonce_resolves() {
     });
 }
 
-// ─── Oracle heartbeat and liveness tests ─────────────────────────────────────
+// â”€â”€â”€ Oracle heartbeat and liveness tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_oracle_heartbeat_requires_oracle_auth() {
@@ -314,7 +315,7 @@ fn test_oracle_heartbeat_requires_oracle_auth() {
     }]);
     client.initialize(&admin, &oracle);
 
-    // No oracle auth set up — must fail
+    // No oracle auth set up â€” must fail
     let result = client.try_update_oracle_heartbeat(&0u32);
     assert!(result.is_err());
 }
@@ -407,7 +408,7 @@ fn test_oracle_liveness_stale_after_threshold() {
     });
     client.update_oracle_heartbeat(&0u32);
 
-    // Check 4000 s later — beyond 3600 s default threshold
+    // Check 4000 s later â€” beyond 3600 s default threshold
     env.ledger().with_mut(|li| {
         li.timestamp = 4000;
     });
@@ -449,7 +450,7 @@ fn test_oracle_liveness_no_heartbeat_returns_false() {
     env.mock_all_auths();
     client.initialize(&admin, &oracle);
 
-    // No heartbeat recorded — must return false
+    // No heartbeat recorded â€” must return false
     assert!(!client.is_oracle_live());
 }
 
@@ -528,7 +529,7 @@ fn test_set_oracle_stale_threshold_validation() {
     assert_eq!(client.get_oracle_stale_threshold(), 1800u64);
 }
 
-// ─── Oracle deviation guardrails tests ───────────────────────────────────────
+// â”€â”€â”€ Oracle deviation guardrails tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_oracle_deviation_rejected_when_over_threshold() {
@@ -703,13 +704,13 @@ fn test_oracle_liveness_custom_threshold() {
     });
     client.update_oracle_heartbeat(&0u32);
 
-    // 100 s later — within custom 120 s threshold
+    // 100 s later â€” within custom 120 s threshold
     env.ledger().with_mut(|li| {
         li.timestamp = 100;
     });
     assert!(client.is_oracle_live());
 
-    // 130 s later — beyond 120 s threshold
+    // 130 s later â€” beyond 120 s threshold
     env.ledger().with_mut(|li| {
         li.timestamp = 130;
     });
@@ -768,7 +769,7 @@ fn test_resolve_round_nonce_boundary_values() {
     assert_eq!(max, Err(Ok(ContractError::OracleNonceReused)));
 }
 
-// ─── Oracle domain-context validation tests (Issue #143) ────────────────────
+// â”€â”€â”€ Oracle domain-context validation tests (Issue #143) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_resolve_round_wrong_network_id_rejected() {

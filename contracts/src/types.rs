@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Type definitions for the XLM Price Prediction Market.
 
 use soroban_sdk::{contracttype, Address, BytesN};
@@ -13,7 +14,7 @@ pub enum RoundMode {
 
 /// Storage keys for contract data
 ///
-/// ## Indexed position keys (variants 13–15)
+/// ## Indexed position keys (variants 13â€“15)
 ///
 /// `Position(round_id, address)` and `PrecisionPosition(round_id, address)` store
 /// a single user's record under a composite key, enabling O(1) read/write per user
@@ -35,22 +36,22 @@ pub enum DataKey {
     /// If missing, the contract treats it as legacy schema version 1.
     SchemaVersion,
     ActiveRound,
-    Positions,          // Legacy key — read-only migration compat
-    UpDownPositions,    // Legacy key — read-only migration compat
-    PrecisionPositions, // Legacy key — read-only migration compat
+    Positions,          // Legacy key â€” read-only migration compat
+    UpDownPositions,    // Legacy key â€” read-only migration compat
+    PrecisionPositions, // Legacy key â€” read-only migration compat
     PendingWinnings(Address),
     UserStats(Address),
     Paused,
     BetWindowLedgers,
     RunWindowLedgers,
     LastRoundId,
-    /// Per-user UpDown position: (round_id, address) → UserPosition
+    /// Per-user UpDown position: (round_id, address) â†’ UserPosition
     Position(u64, Address),
-    /// Per-user Precision prediction: (round_id, address) → PrecisionPrediction
+    /// Per-user Precision prediction: (round_id, address) â†’ PrecisionPrediction
     PrecisionPosition(u64, Address),
-    /// Per-user Precision commitment: (round_id, address) → PrecisionCommitment
+    /// Per-user Precision commitment: (round_id, address) â†’ PrecisionCommitment
     PrecisionCommitment(u64, Address),
-    /// Ordered participant list for a round: round_id → Vec<Address>
+    /// Ordered participant list for a round: round_id â†’ Vec<Address>
     RoundParticipants(u64),
     /// Maximum stake allowed per individual bet (None = unlimited)
     MaxStake,
@@ -58,9 +59,9 @@ pub enum DataKey {
     MaxUserRoundExposure,
     /// Maximum pending winnings allowed per account (None = unlimited)
     MaxPendingWinnings,
-    /// Marker for a cancelled round: round_id → true
+    /// Marker for a cancelled round: round_id â†’ true
     CancelledRound(u64),
-    /// Per-round consumed oracle nonce: (round_id, nonce) → true.
+    /// Per-round consumed oracle nonce: (round_id, nonce) â†’ true.
     /// Used to reject duplicate oracle payload submissions for the same round.
     ConsumedOracleNonce(u64, u64),
     /// Minimum participant count for competitive settlement; unset = no minimum enforced
@@ -148,7 +149,7 @@ pub struct UserStats {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrecisionPrediction {
     pub user: Address,
-    pub predicted_price: u128, // Price scaled to 4 decimals (e.g., 0.2297 → 2297)
+    pub predicted_price: u128, // Price scaled to 4 decimals (e.g., 0.2297 â†’ 2297)
     pub amount: i128,          // Bet amount
 }
 

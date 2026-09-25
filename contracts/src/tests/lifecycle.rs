@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for round creation and full round lifecycle scenarios.
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -602,7 +603,7 @@ fn test_no_mint_event_on_second_call() {
     assert!(mint_event.is_none(), "Should not emit second mint event");
 }
 
-// ─── Cancel round tests (Issue #111) ─────────────────────────────────────────
+// â”€â”€â”€ Cancel round tests (Issue #111) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_cancel_round_refunds_updown_participants() {

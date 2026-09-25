@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for bet placement and validation.
 
 use super::config_helpers::{apply_max_stake, apply_max_user_exposure};
@@ -245,7 +246,7 @@ fn test_multiple_bets_emit_separate_events() {
     assert!(bet_event, "Third bet should emit event");
 }
 
-// ─── Economic controls tests (Issue #113) ─────────────────────────────────────
+// â”€â”€â”€ Economic controls tests (Issue #113) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_bet_exceeds_max_stake_fails() {
@@ -265,10 +266,10 @@ fn test_bet_exceeds_max_stake_fails() {
     apply_max_stake(&env, &client, Some(50_0000000i128));
     client.create_round(&1_0000000, &None);
 
-    // Exactly at cap — should succeed
+    // Exactly at cap â€” should succeed
     client.place_bet(&user, &50_0000000, &BetSide::Up);
 
-    // Over cap — should fail
+    // Over cap â€” should fail
     let user2 = Address::generate(&env);
     client.mint_initial(&user2);
     let result = client.try_place_bet(&user2, &51_0000000, &BetSide::Up);
@@ -291,7 +292,7 @@ fn test_bet_at_max_stake_boundary_succeeds() {
     apply_max_stake(&env, &client, Some(100_0000000i128));
     client.create_round(&1_0000000, &None);
 
-    // Exactly at cap — must succeed
+    // Exactly at cap â€” must succeed
     client.place_bet(&user, &100_0000000, &BetSide::Down);
     assert_eq!(client.balance(&user), 900_0000000);
 }
@@ -316,7 +317,7 @@ fn test_bet_no_max_stake_cap_disabled() {
 
     client.create_round(&1_0000000, &None);
 
-    // Should succeed — cap is disabled
+    // Should succeed â€” cap is disabled
     client.place_bet(&user, &500_0000000, &BetSide::Up);
     assert_eq!(client.balance(&user), 500_0000000);
 }
@@ -357,7 +358,7 @@ fn test_exposure_cap_at_boundary_succeeds() {
     apply_max_user_exposure(&env, &client, Some(100_0000000i128));
     client.create_round(&1_0000000, &None);
 
-    // Exactly at cap — must succeed
+    // Exactly at cap â€” must succeed
     client.place_bet(&user, &100_0000000, &BetSide::Up);
     assert_eq!(client.balance(&user), 900_0000000);
 }

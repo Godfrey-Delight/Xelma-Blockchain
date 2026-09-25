@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for timelocked critical config changes (governance safety).
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -51,7 +52,7 @@ fn test_schedule_windows_does_not_apply_immediately() {
     });
     client.create_round(&1_0000000, &None);
     let round = client.get_active_round().expect("round should exist");
-    // Defaults (6, 12) still active — scheduled change not applied yet.
+    // Defaults (6, 12) still active â€” scheduled change not applied yet.
     assert_eq!(round.bet_end_ledger, 106);
     assert_eq!(round.end_ledger, 112);
 }

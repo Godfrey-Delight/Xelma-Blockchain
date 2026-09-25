@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for round resolution and winnings distribution.
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -968,7 +969,7 @@ fn test_precision_remainder_3way_tie_uneven_pot() {
     assert_eq!(client.get_pending_winnings(&bob), pot_per_winner); // 33_3333333
     assert_eq!(client.get_pending_winnings(&charlie), pot_per_winner); // 33_3333333
 
-    // Verify full pot accounting: 33_3333334 + 33_3333333 + 33_3333333 = 100_0000000 ✓
+    // Verify full pot accounting: 33_3333334 + 33_3333333 + 33_3333333 = 100_0000000 âœ“
 }
 
 #[test]
@@ -1082,7 +1083,7 @@ fn test_precision_remainder_5way_tie() {
     assert_eq!(client.get_pending_winnings(&user4), pot_per_winner); // 20_6000000
     assert_eq!(client.get_pending_winnings(&user5), pot_per_winner); // 20_6000000
 
-    // Verify full pot accounting: 23_6000000 + 20_6000000*4 = 103_0000000 ✓
+    // Verify full pot accounting: 23_6000000 + 20_6000000*4 = 103_0000000 âœ“
 }
 
 #[test]
@@ -1315,7 +1316,7 @@ fn test_no_claim_event_when_no_winnings() {
 }
 
 // ============================================================================
-// PRECISION MODE — DETERMINISM AND CONSERVATION TESTS (Issue #71)
+// PRECISION MODE â€” DETERMINISM AND CONSERVATION TESTS (Issue #71)
 // ============================================================================
 
 /// Verifies that resolving the same precision-mode state in two independent
@@ -1429,7 +1430,7 @@ fn test_precision_payout_conservation_two_way_tie_remainder() {
     client.mint_initial(&alice);
     client.mint_initial(&bob);
 
-    // Total pot 101 — not evenly divisible by 2
+    // Total pot 101 â€” not evenly divisible by 2
     let total_pot: i128 = 101_0000001;
     env.as_contract(&contract_id, || {
         let mut predictions = Map::<Address, PrecisionPrediction>::new(&env);
@@ -1550,7 +1551,7 @@ fn test_min_participants_allows_settlement_at_threshold() {
         li.sequence_number = 12;
     });
 
-    // Resolve with higher price → user1 (Up) wins the pot
+    // Resolve with higher price â†’ user1 (Up) wins the pot
     client.resolve_round(&OraclePayload {
         price: 1_5000000,
         timestamp: env.ledger().timestamp(),
@@ -1704,7 +1705,7 @@ fn test_no_min_participants_threshold_resolves_normally() {
         contract_addr: contract_id.clone(),
     });
 
-    // Price went up but winning_pool (Up) = 100, losing_pool (Down) = 0 → payout = 100 + 0 = 100
+    // Price went up but winning_pool (Up) = 100, losing_pool (Down) = 0 â†’ payout = 100 + 0 = 100
     assert_eq!(client.get_pending_winnings(&user1), 100_0000000);
     assert_eq!(client.get_active_round(), None);
 }

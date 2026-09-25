@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Core contract implementation for the XLM Price Prediction Market.
 
 use soroban_sdk::xdr::ToXdr;
@@ -12,7 +13,7 @@ use crate::types::{
     PrecisionPrediction, Round, RoundArchiveStatus, RoundMode, UserPosition, UserStats,
 };
 
-// ─── Economic control limits ─────────────────────────────────────────────────
+// â”€â”€â”€ Economic control limits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /// Minimum allowed value when setting an economic cap to prevent zero-value lockouts.
 const MIN_CAP_VALUE: i128 = 1;
 /// Upper bound on the minimum-participants config to prevent unbounded gas in resolution.
@@ -23,7 +24,7 @@ const MAX_PRECISION_PARTICIPANTS_LIMIT: u32 = 10_000;
 /// regardless of the caller-requested `limit` (Issue #139).
 const MAX_PAGE_SIZE: u32 = 100;
 
-// ─── Oracle heartbeat limits ──────────────────────────────────────────────────
+// â”€â”€â”€ Oracle heartbeat limits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const DEFAULT_ORACLE_STALE_THRESHOLD: u64 = 3_600; // 1 hour
 const MIN_ORACLE_STALE_THRESHOLD: u64 = 60; // 1 minute
 const MAX_ORACLE_STALE_THRESHOLD: u64 = 86_400; // 24 hours
@@ -33,19 +34,19 @@ const DEFAULT_RUN_WINDOW_LEDGERS: u32 = 12;
 const MAX_BET_WINDOW_LEDGERS: u32 = 1_440;
 const MAX_RUN_WINDOW_LEDGERS: u32 = 2_880;
 
-// ─── Oracle deviation guardrails ─────────────────────────────────────────────
+// â”€â”€â”€ Oracle deviation guardrails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /// Maximum allowed basis points for oracle deviation is bounded to avoid absurd configs.
 /// 100_000 bp = 1000% deviation (effectively "off", but still explicit).
 const MAX_ORACLE_DEVIATION_BPS: u32 = 100_000;
 
-// ─── Storage schema versioning ───────────────────────────────────────────────
+// â”€â”€â”€ Storage schema versioning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CURRENT_SCHEMA_VERSION: u32 = 2;
-// ─── Start-price bounds (Issue #119) ─────────────────────────────────────────
-/// Minimum start price in protocol units — prevents zero-value and dust rounds.
+// â”€â”€â”€ Start-price bounds (Issue #119) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/// Minimum start price in protocol units â€” prevents zero-value and dust rounds.
 const MIN_START_PRICE: u128 = 1;
-/// Maximum start price in protocol units — guards against overflow in payout math.
+/// Maximum start price in protocol units â€” guards against overflow in payout math.
 const MAX_START_PRICE: u128 = 1_000_000_000_000_000_000;
-// ─── Storage TTL Lifecycle Limits (Issue #142) ──────────────────────────────
+// â”€â”€â”€ Storage TTL Lifecycle Limits (Issue #142) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 /// Minimum remaining ledgers before a persistent entry is extended.
 const TTL_BUMP_THRESHOLD: u32 = 17_280; // ~1 day at 5-second ledgers
 /// Amount of ledgers to extend a persistent entry to when below threshold.
@@ -105,11 +106,11 @@ impl VirtualTokenContract {
         Self::_schema_version(&env).unwrap_or(1)
     }
 
-    /// Migrates legacy schema version 1 → current schema version 2 (admin only).
+    /// Migrates legacy schema version 1 â†’ current schema version 2 (admin only).
     ///
     /// Guardrails:
     /// - Must not have an active round (avoids partial state interpretation changes)
-    /// - Only supports v1 → v2 in this release
+    /// - Only supports v1 â†’ v2 in this release
     pub fn migrate_schema_v1_to_v2(env: Env) -> Result<(), ContractError> {
         let admin_key = DataKey::Admin;
         Self::_extend_persistent_ttl(&env, &admin_key);
@@ -406,7 +407,7 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    // ─── Oracle heartbeat and liveness (on-chain health tracking) ───────────
+    // â”€â”€â”€ Oracle heartbeat and liveness (on-chain health tracking) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Records an oracle heartbeat (oracle only).
     /// `status`: 0 = active, 1 = degraded, 2 = offline.
@@ -473,7 +474,7 @@ impl VirtualTokenContract {
     }
 
     /// Schedules a timelocked stale threshold update (alias for [`Self::schedule_oracle_stale_threshold`]).
-    /// Allowed range: 60–86400 seconds (1 minute to 24 hours).
+    /// Allowed range: 60â€“86400 seconds (1 minute to 24 hours).
     pub fn set_oracle_stale_threshold(env: Env, seconds: u64) -> Result<(), ContractError> {
         Self::schedule_oracle_stale_threshold(env, seconds)
     }
@@ -495,7 +496,7 @@ impl VirtualTokenContract {
         Self::schedule_windows(env, bet_ledgers, run_ledgers)
     }
 
-    // ─── Economic controls (Issue #113) ─────────────────────────────────────
+    // â”€â”€â”€ Economic controls (Issue #113) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Schedules a timelocked max stake update (alias for [`Self::schedule_max_stake`]).
     /// Pass `None` to disable the cap.
@@ -526,7 +527,7 @@ impl VirtualTokenContract {
         env.storage().persistent().get(&key)
     }
 
-    // ─── Accounting safety (Issue #120) ─────────────────────────────────────
+    // â”€â”€â”€ Accounting safety (Issue #120) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Schedules a timelocked pending winnings cap update (alias for [`Self::schedule_max_pending_winnings`]).
     /// Pass `None` to disable the cap.
@@ -537,7 +538,7 @@ impl VirtualTokenContract {
         Self::schedule_max_pending_winnings(env, max_pending)
     }
 
-    // ─── Timelocked critical config (governance safety) ─────────────────────
+    // â”€â”€â”€ Timelocked critical config (governance safety) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Schedules a timelocked update to betting and execution windows (admin only).
     /// The change is stored pending until `apply_scheduled_changes` is called after the delay.
@@ -696,7 +697,7 @@ impl VirtualTokenContract {
         env.storage().persistent().get(&key)
     }
 
-    // ─── Minimum participants (competitive settlement integrity) ─────────────
+    // â”€â”€â”€ Minimum participants (competitive settlement integrity) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Sets the minimum participant count required for competitive settlement (admin only).
     /// Rounds that end below this threshold are refunded to all participants.
@@ -785,7 +786,7 @@ impl VirtualTokenContract {
     /// Places a bet on the active round (Up/Down mode only).
     ///
     /// Storage layout: each participant's position is stored under its own
-    /// composite key `DataKey::Position(round_id, user)` — O(1) read/write
+    /// composite key `DataKey::Position(round_id, user)` â€” O(1) read/write
     /// regardless of how many other participants exist. An ordered participant
     /// list `DataKey::RoundParticipants(round_id)` is maintained for O(n)
     /// iteration at resolution time only.
@@ -814,7 +815,7 @@ impl VirtualTokenContract {
             }
         }
 
-        // Single read of the active round — cache in call scope
+        // Single read of the active round â€” cache in call scope
         let mut round: Round = env
             .storage()
             .persistent()
@@ -847,7 +848,7 @@ impl VirtualTokenContract {
             return Err(ContractError::InsufficientBalance);
         }
 
-        // O(1) duplicate-bet check — read one small key, not the full map
+        // O(1) duplicate-bet check â€” read one small key, not the full map
         let pos_key = DataKey::Position(round.round_id, user.clone());
         if env.storage().persistent().has(&pos_key) {
             return Err(ContractError::AlreadyBet);
@@ -859,7 +860,7 @@ impl VirtualTokenContract {
             .ok_or(ContractError::Overflow)?;
         Self::_set_balance(&env, user.clone(), new_balance);
 
-        // Write single-user position key — O(1), constant-size entry
+        // Write single-user position key â€” O(1), constant-size entry
         let position = UserPosition {
             amount,
             side: side.clone(),
@@ -914,7 +915,7 @@ impl VirtualTokenContract {
     }
 
     /// Places a precision prediction on the active round (Precision/Legends mode only)
-    /// predicted_price: price scaled to 4 decimals (e.g., 0.2297 → 2297)
+    /// predicted_price: price scaled to 4 decimals (e.g., 0.2297 â†’ 2297)
     ///
     /// Per-user key `DataKey::PrecisionPosition(round_id, user)` gives O(1)
     /// write cost independent of participant count.
@@ -949,7 +950,7 @@ impl VirtualTokenContract {
             return Err(ContractError::InvalidPriceScale);
         }
 
-        // Single read of the active round — cache in call scope
+        // Single read of the active round â€” cache in call scope
         let round: Round = env
             .storage()
             .persistent()
@@ -977,7 +978,7 @@ impl VirtualTokenContract {
             return Err(ContractError::RoundEnded);
         }
 
-        // O(1) duplicate-prediction check — single composite key read
+        // O(1) duplicate-prediction check â€” single composite key read
         let pred_key = DataKey::PrecisionPosition(round.round_id, user.clone());
         let commit_key = DataKey::PrecisionCommitment(round.round_id, user.clone());
         if env.storage().persistent().has(&pred_key) || env.storage().persistent().has(&commit_key)
@@ -1007,7 +1008,7 @@ impl VirtualTokenContract {
             .ok_or(ContractError::Overflow)?;
         Self::_set_balance(&env, user.clone(), new_balance);
 
-        // Write single-user prediction key — O(1), constant-size entry
+        // Write single-user prediction key â€” O(1), constant-size entry
         let prediction = PrecisionPrediction {
             user: user.clone(),
             predicted_price,
@@ -1034,7 +1035,7 @@ impl VirtualTokenContract {
     }
 
     /// Alias for place_precision_prediction - allows users to submit exact price predictions
-    /// guessed_price: price scaled to 4 decimals (e.g., 0.2297 → 2297)
+    /// guessed_price: price scaled to 4 decimals (e.g., 0.2297 â†’ 2297)
     pub fn predict_price(
         env: Env,
         user: Address,
@@ -1222,7 +1223,7 @@ impl VirtualTokenContract {
 
     /// Returns user's position in the current round (Up/Down mode).
     ///
-    /// Reads a single composite key `DataKey::Position(round_id, user)` — O(1).
+    /// Reads a single composite key `DataKey::Position(round_id, user)` â€” O(1).
     /// Falls back to legacy `UpDownPositions` / `Positions` map blobs for
     /// one-time migration compatibility.
     pub fn get_user_position(env: Env, user: Address) -> Option<UserPosition> {
@@ -1256,7 +1257,7 @@ impl VirtualTokenContract {
 
     /// Returns user's precision prediction in the current round (Precision mode).
     ///
-    /// Reads a single composite key `DataKey::PrecisionPosition(round_id, user)` — O(1).
+    /// Reads a single composite key `DataKey::PrecisionPosition(round_id, user)` â€” O(1).
     /// Falls back to legacy `PrecisionPositions` map for migration compatibility.
     pub fn get_user_precision_prediction(env: Env, user: Address) -> Option<PrecisionPrediction> {
         if let Some(round) = env
@@ -1362,7 +1363,7 @@ impl VirtualTokenContract {
         }
         result
     }
-    // ─── Pagination (Issue #139) ─────────────────────────────────────────────
+    // â”€â”€â”€ Pagination (Issue #139) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns a deterministic slice of Precision-mode predictions for the
     /// active round, ordered by ascending participant address (the same
@@ -1373,7 +1374,7 @@ impl VirtualTokenContract {
     /// `MAX_PAGE_SIZE` to bound gas/read costs regardless of caller input.
     ///
     /// Returns an empty `Vec` if there is no active round, if `offset` is
-    /// beyond the number of available entries, or if `limit` is zero — this
+    /// beyond the number of available entries, or if `limit` is zero â€” this
     /// is not an error condition, matching standard pagination semantics
     /// (asking past the end of a list yields an empty page, not a fault).
     ///
@@ -1430,7 +1431,7 @@ impl VirtualTokenContract {
     /// UserPosition)` pairs.
     ///
     /// A `Vec` of pairs is used instead of a `Map` because pagination over a
-    /// `Map` has no stable, caller-controllable slice semantics in Soroban —
+    /// `Map` has no stable, caller-controllable slice semantics in Soroban â€”
     /// pairs preserve the exact offset/limit window the caller requested.
     ///
     /// See [`Self::get_precision_predictions_page`] for the offset/limit/empty-page
@@ -1512,7 +1513,7 @@ impl VirtualTokenContract {
             return Err(ContractError::InvalidOracleRound);
         }
 
-        // ─── Domain-context validation (Issue #143) ─────────────────────────
+        // â”€â”€â”€ Domain-context validation (Issue #143) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Reject payloads targeting a different network or contract deployment.
         if payload.network_id != env.ledger().network_id() {
             return Err(ContractError::OracleNetworkMismatch);
@@ -1533,7 +1534,7 @@ impl VirtualTokenContract {
             return Err(ContractError::StaleOracleData);
         }
 
-        // ─── Oracle deviation guardrails (circuit-breaker) ───────────────────
+        // â”€â”€â”€ Oracle deviation guardrails (circuit-breaker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Compare settlement price against round start price (trusted baseline).
         // If configured, reject large jumps unless an admin-armed one-shot override is set.
         Self::_extend_persistent_ttl(&env, &DataKey::OracleMaxDeviationBps);
@@ -1628,7 +1629,7 @@ impl VirtualTokenContract {
         // Store round ID before cleaning up
         let round_id = round.round_id;
 
-        // ─── Minimum participants threshold check ────────────────────────────
+        // â”€â”€â”€ Minimum participants threshold check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if let Some(min) = env
             .storage()
             .persistent()
@@ -1738,7 +1739,7 @@ impl VirtualTokenContract {
     /// Reads: 1 (participants list) + N (individual positions).
     /// Migration fallback: if the participant list is empty but the legacy
     /// `UpDownPositions` map is present, the resolver iterates the legacy map
-    /// — preserves correctness for any in-flight pre-migration round.
+    /// â€” preserves correctness for any in-flight pre-migration round.
     /// Returns `true` when a one-sided pool was detected (winning side exists but
     /// losing pool is empty). The caller is responsible for emitting the event.
     fn _resolve_updown_mode(
@@ -1758,7 +1759,7 @@ impl VirtualTokenContract {
         let price_unchanged = final_price == round.price_start;
 
         // One-sided liquidity: winning side exists but losing pool is empty.
-        // Policy: refund all participants — no fund loss, transparent outcome.
+        // Policy: refund all participants â€” no fund loss, transparent outcome.
         let is_one_sided = (price_went_up && round.pool_down == 0 && round.pool_up > 0)
             || (price_went_down && round.pool_up == 0 && round.pool_down > 0);
 
@@ -1817,7 +1818,7 @@ impl VirtualTokenContract {
         Ok(is_one_sided)
     }
 
-    /// Legacy refund path — reads the bulk Map blob.
+    /// Legacy refund path â€” reads the bulk Map blob.
     /// Used only when migrating pre-existing rounds; new rounds use indexed keys.
     fn _record_refunds_legacy(
         env: &Env,
@@ -1834,7 +1835,7 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    /// Legacy winnings path — reads the bulk Map blob.
+    /// Legacy winnings path â€” reads the bulk Map blob.
     fn _record_winnings_legacy(
         env: &Env,
         positions: &Map<Address, UserPosition>,
@@ -1875,7 +1876,7 @@ impl VirtualTokenContract {
     ///
     /// Reads: 1 (participants list) + N (individual predictions).
     /// Awards full pot to closest guess(es); ties split evenly.
-    /// Migration fallback: empty participant list → legacy `PrecisionPositions` map.
+    /// Migration fallback: empty participant list â†’ legacy `PrecisionPositions` map.
     fn _resolve_precision_mode(
         env: &Env,
         round_id: u64,
@@ -2006,7 +2007,7 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    /// Legacy precision-mode resolution path — reads the bulk Map blob.
+    /// Legacy precision-mode resolution path â€” reads the bulk Map blob.
     /// Used only as a migration fallback; new rounds use indexed per-user keys.
     fn _resolve_precision_legacy(
         env: &Env,
@@ -2068,7 +2069,7 @@ impl VirtualTokenContract {
             let payout_per_winner = total_pot / winner_count;
             let remainder = total_pot % winner_count;
 
-            // Award to each winner — all arithmetic checked before writing
+            // Award to each winner â€” all arithmetic checked before writing
             for i in 0..winners.len() {
                 if let Some(winner) = winners.get(i) {
                     let payout = if i == 0 {
@@ -2094,7 +2095,7 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    // ─── Lifecycle resilience (Issue #111) ──────────────────────────────────
+    // â”€â”€â”€ Lifecycle resilience (Issue #111) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Cancels the active round and deterministically refunds all participant stakes.
     ///
@@ -2224,7 +2225,7 @@ impl VirtualTokenContract {
         }
 
         let current_balance = Self::balance(env.clone(), user.clone());
-        // Compute new balance before writing — all-or-nothing guarantee
+        // Compute new balance before writing â€” all-or-nothing guarantee
         let new_balance = Self::payout_add(current_balance, pending)?;
         Self::_set_balance(&env, user.clone(), new_balance);
 
@@ -2242,7 +2243,7 @@ impl VirtualTokenContract {
         Ok(pending)
     }
 
-    /// Records refunds when price unchanged — indexed variant.
+    /// Records refunds when price unchanged â€” indexed variant.
     ///
     /// Reads N individual position keys (O(1) each); no full-map deserialisation.
     fn _record_refunds_indexed(
@@ -2262,7 +2263,7 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    /// Records winnings for winning side — indexed variant.
+    /// Records winnings for winning side â€” indexed variant.
     ///
     /// Formula: payout = bet + (bet / winning_pool) * losing_pool
     /// Reads N individual position keys; no full-map deserialisation.

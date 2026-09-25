@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Simplified reference model for contract state used in invariant testing.
 use std::collections::HashMap;
 use soroban_sdk::Address;
@@ -19,7 +20,7 @@ impl ReferenceModel {
     pub fn deposit(&mut self, user: &Address, amount: i128) {
         *self.balances.entry(user.clone()).or_default() += amount;
     }
-    /// Withdraw tokens for a user (ensures non‑negative balance).
+    /// Withdraw tokens for a user (ensures nonâ€‘negative balance).
     pub fn withdraw(&mut self, user: &Address, amount: i128) {
         let entry = self.balances.entry(user.clone()).or_default();
         *entry = entry.saturating_sub(amount);

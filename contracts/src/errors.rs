@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Contract error types for the XLM Price Prediction Market.
 
 use soroban_sdk::contracterror;
@@ -55,7 +56,7 @@ pub enum ContractError {
     WindowOutOfRange = 23,
     /// Oracle payload timestamp is in the future
     FutureOracleData = 24,
-    /// Arithmetic overflow in payout accumulation — no funds moved
+    /// Arithmetic overflow in payout accumulation â€” no funds moved
     PayoutOverflow = 25,
     /// Round has been cancelled and cannot be resolved
     RoundCancelled = 26,
@@ -75,13 +76,13 @@ pub enum ContractError {
     OracleNonceReused = 33,
     /// Round has fewer participants than the configured minimum for competitive settlement
     InsufficientParticipants = 34,
-    /// Minimum participants value is out of valid range (must be 1–10000)
+    /// Minimum participants value is out of valid range (must be 1â€“10000)
     InvalidMinParticipants = 35,
     /// Oracle heartbeat status is out of range (must be 0, 1, or 2)
     InvalidOracleStatus = 36,
-    /// Oracle stale threshold is out of valid range (must be 60–86400 seconds)
+    /// Oracle stale threshold is out of valid range (must be 60â€“86400 seconds)
     InvalidStaleThreshold = 37,
-    /// Precision participant cap is out of range (must be 1–10000)
+    /// Precision participant cap is out of range (must be 1â€“10000)
     InvalidPrecisionParticipantCap = 38,
     /// Precision round has reached the configured participant cap
     PrecisionParticipantCapExceeded = 39,

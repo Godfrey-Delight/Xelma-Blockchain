@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for configurable betting and execution windows.
 
 use super::config_helpers::apply_windows;
@@ -439,7 +440,7 @@ fn test_place_precision_prediction_fails_without_user_auth() {
     assert!(result.is_err());
 }
 
-// ─── Issue #119: start-price bounds ─────────────────────────────────────────
+// â”€â”€â”€ Issue #119: start-price bounds â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_create_round_rejects_zero_start_price() {

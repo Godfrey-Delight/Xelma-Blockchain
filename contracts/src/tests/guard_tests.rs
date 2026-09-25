@@ -1,7 +1,8 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for the single-active-round invariant guard (assert_no_active_round).
 //!
-//! Success path: no active round → create_round proceeds, storage updated.
-//! Failure path: active round present → RoundAlreadyActive returned, storage
+//! Success path: no active round â†’ create_round proceeds, storage updated.
+//! Failure path: active round present â†’ RoundAlreadyActive returned, storage
 //!               snapshot confirms no mutation occurred.
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -12,9 +13,9 @@ use soroban_sdk::{
     Address, Env,
 };
 
-// ─── success path ────────────────────────────────────────────────────────────
+// â”€â”€â”€ success path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/// No active round → create_round proceeds, ActiveRound and LastRoundId written.
+/// No active round â†’ create_round proceeds, ActiveRound and LastRoundId written.
 #[test]
 fn test_guard_success_path_no_active_round() {
     let env = Env::default();
@@ -82,9 +83,9 @@ fn test_guard_passes_after_round_resolved() {
     assert_eq!(round2.price_start, 2_0000000);
 }
 
-// ─── failure path ────────────────────────────────────────────────────────────
+// â”€â”€â”€ failure path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/// Active round present → RoundAlreadyActive returned, storage unchanged.
+/// Active round present â†’ RoundAlreadyActive returned, storage unchanged.
 #[test]
 fn test_guard_failure_path_active_round_exists() {
     let env = Env::default();
@@ -128,7 +129,7 @@ fn test_guard_failure_path_active_round_exists() {
     assert_eq!(round_after.bet_end_ledger, existing_round.bet_end_ledger);
     assert_eq!(round_after.end_ledger, existing_round.end_ledger);
 
-    // LastRoundId not incremented — no mutation occurred
+    // LastRoundId not incremented â€” no mutation occurred
     assert_eq!(client.get_last_round_id(), last_round_id_before);
 }
 
@@ -147,7 +148,7 @@ fn test_guard_repeated_rejections_do_not_corrupt_state() {
     client.create_round(&1_0000000u128, &None);
     let original_round = client.get_active_round().unwrap();
 
-    // Attempt 5 times — each must fail with the same error and leave state intact
+    // Attempt 5 times â€” each must fail with the same error and leave state intact
     for i in 0..5u128 {
         let result = client.try_create_round(&(2_0000000 + i), &None);
         assert_eq!(result, Err(Ok(ContractError::RoundAlreadyActive)));

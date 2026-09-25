@@ -1,3 +1,4 @@
+﻿// SPDX-License-Identifier: MIT
 //! Tests for boundary conditions and unusual scenarios.
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -265,7 +266,7 @@ fn test_stats_checked_overflow() {
     assert!(result.is_err());
 }
 
-// ─── Issue #115: one-sided liquidity ────────────────────────────────────────
+// â”€â”€â”€ Issue #115: one-sided liquidity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn test_one_sided_pool_emits_event_and_refunds() {
@@ -292,7 +293,7 @@ fn test_one_sided_pool_emits_event_and_refunds() {
         li.sequence_number = 12;
     });
 
-    // Price goes up — winner side exists but losing pool is empty
+    // Price goes up â€” winner side exists but losing pool is empty
     client.resolve_round(&OraclePayload {
         price: 2_0000000,
         timestamp: env.ledger().timestamp(),
@@ -302,7 +303,7 @@ fn test_one_sided_pool_emits_event_and_refunds() {
         contract_addr: contract_id.clone(),
     });
 
-    // Capture events immediately — each subsequent contract call resets the log.
+    // Capture events immediately â€” each subsequent contract call resets the log.
     let events = env.events().all();
     let one_sided_event = events.iter().find(|e| {
         let (_contract, topics, _data) = e;
@@ -342,7 +343,7 @@ fn test_one_sided_pool_down_side_emits_event_and_refunds() {
         li.sequence_number = 12;
     });
 
-    // Price goes down — winning side exists but losing pool is empty
+    // Price goes down â€” winning side exists but losing pool is empty
     client.resolve_round(&OraclePayload {
         price: 1_0000000,
         timestamp: env.ledger().timestamp(),
