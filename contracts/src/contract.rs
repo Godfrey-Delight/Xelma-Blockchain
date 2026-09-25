@@ -312,20 +312,56 @@ impl VirtualTokenContract {
             .unwrap_or(0)
     }
 
-    /// Returns a compact archived round summary by round id, if retained.
-    pub fn get_archived_round(env: Env, round_id: u64) -> Option<ArchivedRoundSummary> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::ArchivedRound(round_id))
+    /// Returns the global status of the protocol.
+    ///
+    /// This is the canonical single-call status endpoint for frontends and
+    /// monitoring dashboards. It is a pure projection of [`RuntimeMode`]
+    /// plus "is a round active" (see `docs/STATUS_CODES.md`):
+    ///
+    /// | `RuntimeMode`       | active round? | return value      |
+    /// |---------------------|---------------|-------------------|
+    /// | `FullyPaused` (2)   | any           | `Paused`      (1) |
+    /// | `ClaimsOnly`  (1)   | any           | `ClaimsOnly`  (2) |
+    /// | `Normal`      (0)   | no            | `ClaimsOnly`  (2) |
+    /// | `Normal`      (0)   | yes           | `Active`      (0) |
+    ///
+    /// `Active` is returned only when round mutations (bets, reveals) would
+    /// actually pass the policy gate; `Paused` only when claims are blocked.
+    pub fn get_protocol_status(env: Env) -> ProtocolStatus {
+        match admin::_current_mode(&env) {
+            RuntimeMode::FullyPaused => ProtocolStatus::Paused,
+            RuntimeMode::ClaimsOnly => ProtocolStatus::ClaimsOnly,
+            RuntimeMode::Normal => {
+                if env.storage().persistent().has(&DataKeyCore::ActiveRound) {
+                    ProtocolStatus::Active
+                } else {
+                    ProtocolStatus::ClaimsOnly
+                }
+            }
+        }
     }
 
     /// Returns up to `limit` most recently archived rounds (newest first).
     ///
-    /// Pass `limit = 0` to receive an empty list. Values above [`MAX_ARCHIVED_ROUNDS`]
-    /// are capped automatically.
-    pub fn get_recent_archived_rounds(env: Env, limit: u32) -> Vec<ArchivedRoundSummary> {
-        let env_ref = &env;
-        let recent: Vec<u64> = env
+    /// | return value          | meaning                                                       |
+    /// |-----------------------|---------------------------------------------------------------|
+    /// | `Unknown`        (0)  | Round not found; never created or pruned from archive.       |
+    /// | `Betting`        (1)  | Active; `ledger < bet_end_ledger`.                           |
+    /// | `Running`        (2)  | Active; `bet_end_ledger ≤ ledger < end_ledger`.              |
+    /// | `AwaitingResolve`(3)  | Active; `ledger ≥ end_ledger`, oracle not yet called.        |
+    /// | `Resolved`       (4)  | Settled normally; pot distributed.                           |
+    /// | `Cancelled`      (5)  | Admin-cancelled; stakes refunded.                            |
+    /// | `FallbackRefund` (6)  | Settled with insufficient participants; stakes refunded.     |
+    /// | `Voided`         (7)  | Dispute window voided the result; stakes refunded.           |
+    ///
+    /// `RuntimeMode` never changes this value: a paused contract still reports
+    /// the round's ledger-derived phase. Combine with `get_protocol_status`.
+    ///
+    /// Note: `Betting`, `Running`, and `AwaitingResolve` are **derived** from
+    /// ledger sequence — they do not involve additional storage writes.
+    pub fn get_round_status(env: Env, round_id: u64) -> RoundStatus {
+        // First check if it is the active round
+        if let Some(active_round) = env
             .storage()
             .persistent()
             .get(&DataKey::RecentArchivedRoundIds)
