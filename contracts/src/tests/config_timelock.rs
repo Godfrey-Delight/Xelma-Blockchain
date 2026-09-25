@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //! Tests for timelocked critical config changes (governance safety).
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
@@ -52,7 +52,7 @@ fn test_schedule_windows_does_not_apply_immediately() {
     });
     client.create_round(&1_0000000, &None);
     let round = client.get_active_round().expect("round should exist");
-    // Defaults (6, 12) still active â€” scheduled change not applied yet.
+    // Defaults (6, 12) still active — scheduled change not applied yet.
     assert_eq!(round.bet_end_ledger, 106);
     assert_eq!(round.end_ledger, 112);
 }
@@ -297,4 +297,168 @@ fn test_set_windows_schedules_without_immediate_apply() {
     let round = client.get_active_round().unwrap();
     assert_eq!(round.bet_end_ledger, 106);
     assert_eq!(round.end_ledger, 112);
+}
+
+// ============================================================================
+// PROTOCOL FEE TIMELOCK TESTS (Issue #162)
+// ============================================================================
+//
+// The protocol fee is a critical config setting (impacts payout fairness for
+// every competitive settlement), so it goes through the same timelock pattern
+// as `OracleMaxDeviationBps` etc.:
+//   schedule -> activation_ledger = now + CONFIG_TIMELOCK_LEDGERS ->
+//   apply_scheduled_changes (any caller) -> storage flipped -> event emitted.
+
+
+#[test]
+fn test_protocol_fee_timelock_full_cycle() {
+    let env = Env::default();
+    let contract_id = env.register(VirtualTokenContract, ());
+    let client = VirtualTokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let oracle = Address::generate(&env);
+
+    env.mock_all_auths();
+    client.initialize(&admin, &oracle);
+
+    // Initially unset.
+    assert_eq!(client.get_protocol_fee_bps(), None);
+
+    // Schedule 500 bps.
+    client.schedule_protocol_fee_bps(&Some(500u32));
+
+    // Before activation: still unset; reads should NOT expose the pending value.
+    assert_eq!(client.get_protocol_fee_bps(), None);
+    let pending = client
+        .get_pending_config_change(&crate::types::ConfigChangeKind::ProtocolFeeBps)
+        .unwrap();
+    assert_eq!(pending.activation_ledger, pending.scheduled_at_ledger + 1440);
+
+    // Advancing the ledger by an insufficient amount must NOT activate.
+    env.ledger().with_mut(|li| li.sequence_number += 1439);
+    let err = client.try_apply_scheduled_changes(
+        &crate::types::ConfigChangeKind::ProtocolFeeBps,
+    );
+    assert!(err.is_err(), "apply before activation_ledger must fail");
+
+    // Exactly at activation_ledger must succeed.
+    env.ledger().with_mut(|li| li.sequence_number += 1);
+    client.apply_scheduled_changes(&crate::types::ConfigChangeKind::ProtocolFeeBps);
+    assert_eq!(client.get_protocol_fee_bps(), Some(500u32));
+
+    // Pending entry must be cleared post-apply.
+    assert!(
+        client
+            .get_pending_config_change(&crate::types::ConfigChangeKind::ProtocolFeeBps)
+            .is_none()
+    );
+
+    // fee_bps_set event must be present.
+    let ev_count = env
+        .events()
+        .all()
+        .iter()
+        .filter(|e| {
+            let (_contract, topics, _data) = e;
+            topics.len() == 2
+                && topics.get(0).unwrap().try_into_val(&env) == Ok(symbol_short!("protocol"))
+                && topics.get(1).unwrap().try_into_val(&env) == Ok(symbol_short!("fee_bps"))
+        })
+        .count();
+    assert!(ev_count >= 1, "fee_bps_set event must be emitted on apply");
+}
+
+#[test]
+fn test_protocol_fee_timelock_admin_can_cancel_before_activation() {
+    let env = Env::default();
+    let contract_id = env.register(VirtualTokenContract, ());
+    let client = VirtualTokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let oracle = Address::generate(&env);
+
+    env.mock_all_auths();
+    client.initialize(&admin, &oracle);
+
+    client.schedule_protocol_fee_bps(&Some(100u32));
+    // cancel before activation must be admin-only and clear the pending entry.
+    client.cancel_config_change(&crate::types::ConfigChangeKind::ProtocolFeeBps);
+    assert!(
+        client
+            .get_pending_config_change(&crate::types::ConfigChangeKind::ProtocolFeeBps)
+            .is_none()
+    );
+    assert_eq!(client.get_protocol_fee_bps(), None);
+}
+
+#[test]
+fn test_protocol_fee_timelock_disable_via_none() {
+    // Setting fee back to None must remove the storage key (FormatOption::None on
+    // the storage side) so the _read_protocol_fee_bps helper returns None and
+    // the contract resumes byte-for-byte pre-#162 behaviour.
+    let env = Env::default();
+    let contract_id = env.register(VirtualTokenContract, ());
+    let client = VirtualTokenContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let oracle = Address::generate(&env);
+
+    env.mock_all_auths();
+    client.initialize(&admin, &oracle);
+
+    client.schedule_protocol_fee_bps(&Some(500u32));
+    env.ledger().with_mut(|li| li.sequence_number = 2000);
+    client.apply_scheduled_changes(
+        &crate::types::ConfigChangeKind::ProtocolFeeBps,
+    );
+    assert_eq!(client.get_protocol_fee_bps(), Some(500u32));
+
+    client.schedule_protocol_fee_bps(&None);
+    env.ledger().with_mut(|li| li.sequence_number = 10_000);
+    client.apply_scheduled_changes(
+        &crate::types::ConfigChangeKind::ProtocolFeeBps,
+    );
+    assert_eq!(client.get_protocol_fee_bps(), None,
+        "re-issuing with None must remove the storage key entirely");
+}
+
+/// Regression: every ConfigChangeKind variant must have a unique discriminant (Issue #383).
+#[test]
+fn config_change_kind_discriminants_are_unique() {
+    use core::mem::discriminant;
+    use crate::types::ConfigChangeKind;
+
+    let kinds = [
+        ConfigChangeKind::Windows,
+        ConfigChangeKind::MaxStake,
+        ConfigChangeKind::MaxUserRoundExposure,
+        ConfigChangeKind::MaxPendingWinnings,
+        ConfigChangeKind::OracleStaleThreshold,
+        ConfigChangeKind::OracleMaxDeviationBps,
+        ConfigChangeKind::ProtocolFeeBps,
+        ConfigChangeKind::MinParticipants,
+        ConfigChangeKind::MaxPrecisionParticipants,
+        ConfigChangeKind::MintLimit,
+        ConfigChangeKind::ArchiveRetention,
+        ConfigChangeKind::CloseBufferLedgers,
+        ConfigChangeKind::OracleTimestampSkew,
+        ConfigChangeKind::PendingWinningsExpiry,
+        ConfigChangeKind::MinBet,
+        ConfigChangeKind::EpochMintBudget,
+        ConfigChangeKind::PrecisionPayoutPolicy,
+        ConfigChangeKind::DisputeLedgers,
+        ConfigChangeKind::FeeModel,
+        ConfigChangeKind::EarlyCashoutBps,
+    ];
+
+    for i in 0..kinds.len() {
+        for j in (i + 1)..kinds.len() {
+            assert_ne!(
+                discriminant(&kinds[i]),
+                discriminant(&kinds[j]),
+                "ConfigChangeKind collision between variants at index {i} and {j}"
+            );
+        }
+    }
 }

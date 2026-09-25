@@ -1,21 +1,21 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //! Tests for the single-active-round invariant guard (assert_no_active_round).
 //!
-//! Success path: no active round â†’ create_round proceeds, storage updated.
-//! Failure path: active round present â†’ RoundAlreadyActive returned, storage
+//! Success path: no active round → create_round proceeds, storage updated.
+//! Failure path: active round present → RoundAlreadyActive returned, storage
 //!               snapshot confirms no mutation occurred.
 
 use crate::contract::{VirtualTokenContract, VirtualTokenContractClient};
 use crate::errors::ContractError;
-use crate::types::{DataKey, OraclePayload, Round};
+use crate::types::{DataKeyCore, DataKeyScoped, OraclePayload, Round};
 use soroban_sdk::{
     testutils::{Address as _, Ledger as _},
     Address, Env,
 };
 
-// â”€â”€â”€ success path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── success path ────────────────────────────────────────────────────────────
 
-/// No active round â†’ create_round proceeds, ActiveRound and LastRoundId written.
+/// No active round → create_round proceeds, ActiveRound and LastRoundId written.
 #[test]
 fn test_guard_success_path_no_active_round() {
     let env = Env::default();
@@ -26,6 +26,7 @@ fn test_guard_success_path_no_active_round() {
     let admin = Address::generate(&env);
     let oracle = Address::generate(&env);
     client.initialize(&admin, &oracle);
+    client.update_oracle_heartbeat(&0u32);
 
     // Pre-condition: no active round
     assert!(client.get_active_round().is_none());
@@ -58,6 +59,7 @@ fn test_guard_passes_after_round_resolved() {
     let admin = Address::generate(&env);
     let oracle = Address::generate(&env);
     client.initialize(&admin, &oracle);
+    client.update_oracle_heartbeat(&0u32);
 
     client.create_round(&1_0000000u128, &None);
     let round = client.get_active_round().unwrap();
@@ -72,7 +74,8 @@ fn test_guard_passes_after_round_resolved() {
         nonce: 1u64,
         network_id: env.ledger().network_id(),
         contract_addr: contract_id.clone(),
-    });
+        confidence: None,
+        attestation: None,    });
 
     assert!(client.get_active_round().is_none());
 
@@ -83,9 +86,9 @@ fn test_guard_passes_after_round_resolved() {
     assert_eq!(round2.price_start, 2_0000000);
 }
 
-// â”€â”€â”€ failure path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── failure path ────────────────────────────────────────────────────────────
 
-/// Active round present â†’ RoundAlreadyActive returned, storage unchanged.
+/// Active round present → RoundAlreadyActive returned, storage unchanged.
 #[test]
 fn test_guard_failure_path_active_round_exists() {
     let env = Env::default();
@@ -96,6 +99,7 @@ fn test_guard_failure_path_active_round_exists() {
     let admin = Address::generate(&env);
     let oracle = Address::generate(&env);
     client.initialize(&admin, &oracle);
+    client.update_oracle_heartbeat(&0u32);
 
     // Create first round
     let start_price: u128 = 1_5000000;
@@ -105,7 +109,7 @@ fn test_guard_failure_path_active_round_exists() {
     let existing_round: Round = env.as_contract(&contract_id, || {
         env.storage()
             .persistent()
-            .get(&DataKey::ActiveRound)
+            .get(&DataKeyCore::ActiveRound)
             .unwrap()
     });
     let last_round_id_before = client.get_last_round_id();
@@ -120,7 +124,7 @@ fn test_guard_failure_path_active_round_exists() {
     let round_after: Round = env.as_contract(&contract_id, || {
         env.storage()
             .persistent()
-            .get(&DataKey::ActiveRound)
+            .get(&DataKeyCore::ActiveRound)
             .unwrap()
     });
     assert_eq!(round_after.round_id, existing_round.round_id);
@@ -129,7 +133,7 @@ fn test_guard_failure_path_active_round_exists() {
     assert_eq!(round_after.bet_end_ledger, existing_round.bet_end_ledger);
     assert_eq!(round_after.end_ledger, existing_round.end_ledger);
 
-    // LastRoundId not incremented â€” no mutation occurred
+    // LastRoundId not incremented — no mutation occurred
     assert_eq!(client.get_last_round_id(), last_round_id_before);
 }
 
@@ -144,11 +148,12 @@ fn test_guard_repeated_rejections_do_not_corrupt_state() {
     let admin = Address::generate(&env);
     let oracle = Address::generate(&env);
     client.initialize(&admin, &oracle);
+    client.update_oracle_heartbeat(&0u32);
 
     client.create_round(&1_0000000u128, &None);
     let original_round = client.get_active_round().unwrap();
 
-    // Attempt 5 times â€” each must fail with the same error and leave state intact
+    // Attempt 5 times — each must fail with the same error and leave state intact
     for i in 0..5u128 {
         let result = client.try_create_round(&(2_0000000 + i), &None);
         assert_eq!(result, Err(Ok(ContractError::RoundAlreadyActive)));
