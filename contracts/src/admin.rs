@@ -1210,10 +1210,13 @@ pub fn _require_supported_schema(env: &Env) -> Result<u32, ContractError> {
 ///
 /// # Errors
 /// - `AdminNotSet` — contract not initialized.
-/// - `ContractPaused` — contract is fully paused.
+/// - `ContractPaused` — contract is fully paused (allowed in `ClaimsOnly`).
+/// - `ExpiryNotConfigured` — expiry is disabled (`0`, the default).
+/// - `PendingWinningsNotFound` — the user has no pending winnings (or no
+///   last-credited ledger is recorded for them).
 /// - `PendingWinningsNotExpired` — entry exists but hasn't reached the expiry threshold.
-/// - `NoActiveRound` — used as a generic "no pending winnings" signal when
-///   the entry doesn't exist or expiry is disabled (0).
+///
+/// Operator playbook: `docs/OPS_ARCHIVE_RECLAIM_PLAYBOOK.md`.
 pub fn reclaim_expired_pending_winnings(env: Env, user: Address) -> Result<i128, ContractError> {
     _require_supported_schema(&env)?;
     let admin: Address = env
