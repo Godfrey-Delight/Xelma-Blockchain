@@ -22,6 +22,7 @@ mod edge_cases;
 mod drill;
 mod drill_chaos_migration;
 mod event_coverage;
+mod event_order_golden;
 mod fee_model;
 mod guard_tests;
 // mod initialization; // upstream bug
