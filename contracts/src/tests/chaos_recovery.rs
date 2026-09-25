@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 //! Chaos and recovery tests for interrupted lifecycle actions (Issue #122).
 //!
 //! Each scenario models a failure-like condition or unusual execution sequence and
@@ -39,6 +40,7 @@ fn setup_contract() -> (
     let admin = Address::generate(&env);
     let oracle = Address::generate(&env);
     client.initialize(&admin, &oracle);
+    client.update_oracle_heartbeat(&0u32);
     (env, contract_id, admin, oracle, client)
 }
 
@@ -99,7 +101,8 @@ fn test_chaos_double_resolve_returns_no_active_round() {
         nonce: 1u64,
         network_id: env.ledger().network_id(),
         contract_addr: contract_id.clone(),
-    };
+        confidence: None,
+        attestation: None,    };
 
     // First resolve succeeds
     client.resolve_round(&payload);
@@ -168,7 +171,8 @@ fn test_chaos_pause_mid_round_then_unpause_resolve() {
         nonce: 1u64,
         network_id: env.ledger().network_id(),
         contract_addr: contract_id.clone(),
-    });
+        confidence: None,
+        attestation: None,    });
 
     // Invariant: alice gets her stake back (only winner, no losers)
     assert_eq!(client.get_pending_winnings(&alice), 100_0000000);
@@ -197,7 +201,8 @@ fn test_chaos_resolve_empty_round_clean_state() {
         nonce: 1u64,
         network_id: env.ledger().network_id(),
         contract_addr: contract_id.clone(),
-    });
+        confidence: None,
+        attestation: None,    });
 
     // Invariant: clean state
     assert_eq!(client.get_active_round(), None);
@@ -253,6 +258,12 @@ fn test_chaos_cancel_and_restart_round_no_state_bleed() {
     client.create_round(&1_0000000, &None);
     client.place_bet(&alice, &100_0000000, &BetSide::Up);
     client.cancel_round(&0u32);
+
+    // A ledger sequence backs at most one round (oracle payloads bind to
+    // `Round.start_ledger`), so advance before creating the replacement.
+    env.ledger().with_mut(|li| {
+        li.sequence_number += 1;
+    });
 
     // Round 2: started fresh; bob bets, alice does NOT carry over her round-1 position
     client.create_round(&1_2000000, &None);

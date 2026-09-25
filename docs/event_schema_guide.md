@@ -40,18 +40,34 @@ Emitted when a user places a prediction directly (without commit-reveal) in `Pre
 * **Topics:** `("predict", "price")`
 * **Payload:** `(user: Address, round_id: u64, predicted_price: u128, amount: i128)`
 
-### 7. Round Resolved
-Emitted when a round is resolved with the final price from the oracle.
-* **Topics:** `("round", "resolved")`
-* **Payload:** `(round_id: u64, final_price: u128, mode: u32)`
+### 7. Round Summary (Canonical Terminal Event)
+Emitted exactly once per terminal round transition — competitive resolution,
+admin cancellation, or min-participants fallback. Replaces the previously
+separate `("round", "resolved")`, `("round", "cancelled")`, and
+`("round", "fallback")` events.
+* **Topics:** `("round", "summary")`
+* **Payload:** `(version: u32, round_id: u64, status: u32, mode: u32, price_start: u128, price_final: u128, pool_up: i128, pool_down: i128, participant_count: u32, total_pot: i128, fee_amount: i128, settled_at_ledger: u32, confidence: Option<u32>)`
+  * `version`: Schema version (`0` for this layout)
+  * `status`: `0` for `Resolved`, `1` for `Cancelled`, `2` for `FallbackRefund`
   * `mode`: `0` for `UpDown`, `1` for `Precision`
+  * `confidence`: Oracle confidence in basis points (`None` for cancel/fallback)
 
-### 8. Round Cancelled
-Emitted when an active round is cancelled by the admin.
-* **Topics:** `("round", "cancelled")`
-* **Payload:** `(round_id: u64, reason: u32, pool_up: i128, pool_down: i128)`
+### 8. Outcome Loss
+Emitted per losing participant when a round settles competitively
+(Issue #168). Complements the existing payout/refund events so that
+analytics, user notifications, and indexers no longer need to infer losses
+from the absence of payout events.
+* **Topics:** `("outcome", "loss")`
+* **Payload:** `(user: Address, round_id: u64, mode: u32, amount: i128, side: u32, predicted_price: u128)`
+  * `mode`: `0` for `UpDown`, `1` for `Precision`
+  * UpDown losers: `side` is `0` for Up or `1` for Down; `predicted_price` is `0`
+  * Precision losers: `side` is `0`; `predicted_price` is the user's guess (`0` if only committed and unrevealed)
 
-### 9. Winnings Claimed
+Not emitted on refund paths (price-unchanged refund, one-sided pool
+refund, min-participants fallback, admin cancellation) — those paths use
+their respective refund-prone events instead.
+
+### 8. Winnings Claimed
 Emitted when a user claims their accumulated pending winnings.
 * **Topics:** `("claim", "winnings")`
 * **Payload:** `(user: Address, amount: i128)`
@@ -60,3 +76,67 @@ Emitted when a user claims their accumulated pending winnings.
 Emitted when a new user claims their one-time initial allocation.
 * **Topics:** `("mint", "initial")`
 * **Payload:** `(user: Address, amount: i128)`
+
+### 11. Runtime Mode Transition
+Emitted when the contract's emergency runtime mode is changed by the admin.
+* **Topics:** `("mode", "transition")`
+* **Payload:** `(old_mode: u32, new_mode: u32)`
+  * `mode`: `0` for `Normal`, `1` for `ClaimsOnly`, `2` for `FullyPaused`
+
+## Section: Protocol fee events (Issue #162)
+
+The optional protocol fee introduces a new top-level event namespace
+`("protocol", ...)` for treasury-related observability. Three event types
+emitted, all gated on admin-controlled timelock activation:
+
+### `("protocol", "fee_collected")` — competitive settlement fee accrued
+
+Emitted exactly once per competitive settlement (UpDown indexed/legacy,
+Precision indexed/legacy) when `get_protocol_fee_bps` returns
+`Some(active_bps)`. Payload `(round_id: u64, fee_amount: i128,
+treasury_balance: i128, bps_active: u32)`.
+
+Conservation `Σ payouts + fee_amount == total_pot` is enforced in
+`_apply_protocol_fee_*`. UpDown conservatively deducts from the losing
+pool first, then spills over into the winning pool — so winners
+receive their remaining principal when the fee exceeds losing liquidity.
+Refund paths (the canonical `("round","summary")` with `status = 2 (FallbackRefund)`,
+refunds, admin cancellations) do NOT emit this event.
+
+### `("protocol", "fee_bps_set")` — timelock applied
+
+Emitted exactly once when a previously-scheduled `ProtocolFeeBps` change
+is written to storage at its `activation_ledger`. Payload is
+`(Option<u32>,)` — `None` means "fee disabled again", `Some(bps)` carries
+the new active bps.
+
+### `("protocol", "fee_withdrawn")` — treasury drained to recipient
+
+Admin-only. Payload `(recipient: Address, amount: i128,
+new_treasury: i128)`. Recipient is credited via the existing
+`PendingWinnings` ledger — so claim semantics are identical to
+competitive winnings, and no additional surface is needed for users
+to spend the credited amount.
+
+### Indexer guidance
+
+A fee-aware indexer can rely on `fee_collected` events as the canonical
+record of fee accrual. Treasury balance computations should:
+
+1. Subscribe to `("protocol", fee_collected)` for per-round accruals.
+2. Subscribe to `("protocol", fee_withdrawn)` for treasury drains.
+3. Optionally cross-reference `("config", applied)` events associated
+   with `("protocol", fee_bps_set)` for rate changes.
+
+Conservations across event streams:
+
+* For each `fee_collected` event: Σ of `("claim","winnings")` for the
+  same round's winners + `fee_amount` == `round.pool_up + round.pool_down`
+  (UpDown) or `Σ prediction.amount` (Precision mode, including
+  unrevealed-commitment stakes that forfeited to the pot).
+* When a Precision round resolves with **zero reveals**, stakes are refunded
+  instead of fee-split: `Σ refund amounts == Σ commitment amounts` and no
+  `fee_collected` event is emitted for that path.
+* Treasury balance monotonically increases across `fee_collected`
+  events and monotonically decreases across `fee_withdrawn` events.
+
