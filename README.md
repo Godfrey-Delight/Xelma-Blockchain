@@ -728,6 +728,7 @@ Check issues labeled [`good-first-issue`](https://github.com/TevaLabs/Xelma-Bloc
 - **[Protocol Spec](./PROTOCOL_SPEC.md)** - Formal invariants, threat model, and test traceability
 - **[Security Review](./SECURITY_REVIEW.md)** - Security analysis and best practices
 - **[Bindings Guide](./bindings/README.md)** - TypeScript integration guide
+- **[Wallet Error Guide](./docs/WALLET_ERROR_GUIDE.md)** - Contract error decoding and UX copy for wallets & frontends
 - **[Test Suite](./contracts/src/tests/)** - Comprehensive test examples
 
 ---
