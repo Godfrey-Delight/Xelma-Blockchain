@@ -20,6 +20,7 @@ mod deviation_reference;
 mod dispute_window;
 mod edge_cases;
 mod drill;
+mod drill_chaos_migration;
 mod event_coverage;
 mod fee_model;
 mod guard_tests;
