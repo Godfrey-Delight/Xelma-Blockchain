@@ -1,10 +1,9 @@
 ﻿// SPDX-License-Identifier: MIT
 //! Core contract implementation for the XLM Price Prediction Market.
 
-use soroban_sdk::xdr::ToXdr;
-use soroban_sdk::{
-    contract, contractimpl, panic_with_error, symbol_short, Address, Bytes, BytesN, Env, Map, Vec,
-};
+#![allow(dead_code)]
+
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
 
 use crate::errors::ContractError;
 use crate::types::{
@@ -515,14 +514,152 @@ impl VirtualTokenContract {
         Self::schedule_oracle_stale_threshold(env, seconds)
     }
 
-    /// Returns the configured oracle stale threshold, or the default (3600 s) if not set.
-    pub fn get_oracle_stale_threshold(env: Env) -> u64 {
-        let key = DataKey::OracleStaleThreshold;
-        Self::_extend_persistent_ttl(&env, &key);
-        env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(DEFAULT_ORACLE_STALE_THRESHOLD)
+    // ─── Participant access control (Issue #274) ────────────────────────────
+
+    pub fn set_access_control_enabled(env: Env, enabled: bool) -> Result<(), ContractError> {
+        access_control::set_access_control_enabled(env, enabled)
+    }
+
+    pub fn is_access_control_enabled(env: Env) -> bool {
+        access_control::is_access_control_enabled(env)
+    }
+
+    pub fn add_allowlisted(env: Env, user: Address) -> Result<(), ContractError> {
+        access_control::add_allowlisted(env, user)
+    }
+
+    pub fn remove_allowlisted(env: Env, user: Address) -> Result<(), ContractError> {
+        access_control::remove_allowlisted(env, user)
+    }
+
+    pub fn add_denylisted(env: Env, user: Address) -> Result<(), ContractError> {
+        access_control::add_denylisted(env, user)
+    }
+
+    pub fn remove_denylisted(env: Env, user: Address) -> Result<(), ContractError> {
+        access_control::remove_denylisted(env, user)
+    }
+
+    pub fn is_allowlisted(env: Env, user: Address) -> bool {
+        access_control::is_allowlisted(env, user)
+    }
+
+    pub fn is_denylisted(env: Env, user: Address) -> bool {
+        access_control::is_denylisted(env, user)
+    }
+
+    pub fn get_access_state(env: Env, user: Address) -> AccessState {
+        access_control::get_access_state(env, user)
+    }
+
+    pub fn get_access_policy(env: Env, user: Address) -> (bool, AccessState) {
+        access_control::get_access_policy(env, user)
+    }
+
+    // ─── Dual-Approval Governance (Issue #272) ──────────────────────────────
+
+    /// Configures the secondary governance approver (admin only).
+    pub fn set_gov_approver(env: Env, approver: Address) -> Result<(), ContractError> {
+        governance::set_gov_approver(env, approver)
+    }
+
+    /// Returns the configured secondary governance approver address, if set.
+    pub fn get_gov_approver(env: Env) -> Option<Address> {
+        governance::get_gov_approver(env)
+    }
+
+    /// Sets default proposal TTL in ledgers (admin only).
+    pub fn set_gov_proposal_ttl(env: Env, ttl_ledgers: u32) -> Result<(), ContractError> {
+        governance::set_gov_proposal_ttl(env, ttl_ledgers)
+    }
+
+    /// Returns default proposal TTL in ledgers.
+    pub fn get_gov_proposal_ttl(env: Env) -> u32 {
+        governance::get_gov_proposal_ttl(env)
+    }
+
+    /// Proposes a protected administrative action (governance admin/approver only).
+    pub fn propose_gov_action(
+        env: Env,
+        proposer: Address,
+        action: GovAction,
+        custom_ttl: Option<u32>,
+    ) -> Result<u64, ContractError> {
+        governance::propose(env, proposer, action, custom_ttl)
+    }
+
+    /// Approves a pending governance proposal (governance admin/approver only, distinct from proposer).
+    pub fn approve_gov_proposal(
+        env: Env,
+        approver: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        governance::approve(env, approver, proposal_id)
+    }
+
+    /// Executes an approved governance proposal (governance admin/approver only).
+    pub fn execute_gov_proposal(
+        env: Env,
+        executor: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        governance::execute(env, executor, proposal_id)
+    }
+
+    /// Cancels an unexecuted governance proposal (governance admin/approver only).
+    pub fn cancel_gov_proposal(
+        env: Env,
+        canceller: Address,
+        proposal_id: u64,
+    ) -> Result<(), ContractError> {
+        governance::cancel(env, canceller, proposal_id)
+    }
+
+    /// Queries details for a governance proposal.
+    pub fn get_gov_proposal(env: Env, proposal_id: u64) -> Option<GovProposal> {
+        governance::get_gov_proposal(env, proposal_id)
+    }
+
+    // ─── On-Chain Constitution Framework (Issue #363) ──────────────────────────
+
+    /// Establishes the on-chain constitution with governance rules (admin only).
+    pub fn establish_constitution(
+        env: Env,
+        veto_window_ledgers: u32,
+        timelock_ledgers: u32,
+        dual_approval_required: bool,
+    ) -> Result<(), ContractError> {
+        governance::establish_constitution(env, veto_window_ledgers, timelock_ledgers, dual_approval_required)
+    }
+
+    /// Returns the on-chain constitution metadata, if established.
+    pub fn get_constitution(env: Env) -> Option<crate::types::ConstitutionMetadata> {
+        governance::get_constitution(env)
+    }
+
+    /// Proposes a parameter amendment with timelock and optional veto window.
+    pub fn propose_amendment(
+        env: Env,
+        proposer: Address,
+        parameter_name: Symbol,
+        new_value: Bytes,
+    ) -> Result<u64, ContractError> {
+        governance::propose_amendment(env, proposer, parameter_name, new_value)
+    }
+
+    /// Vetoes a pending amendment before its veto window expires.
+    pub fn veto_amendment(env: Env, vetoer: Address, amendment_id: u64) -> Result<(), ContractError> {
+        governance::veto_amendment(env, vetoer, amendment_id)
+    }
+
+    /// Activates an amendment after timelock expires.
+    pub fn activate_amendment(env: Env, activator: Address, amendment_id: u64) -> Result<(), ContractError> {
+        governance::activate_amendment(env, activator, amendment_id)
+    }
+
+    /// Retrieves an amendment proposal record by ID.
+    pub fn get_amendment(env: Env, amendment_id: u64) -> Option<crate::types::Amendment> {
+        governance::get_amendment(env, amendment_id)
     }
 
     /// Schedules a timelocked windows update (alias for [`Self::schedule_windows`]).
