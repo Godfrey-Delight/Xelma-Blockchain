@@ -3,58 +3,52 @@
 
 #![allow(dead_code)]
 
-use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, Map, Symbol, Vec};
+use soroban_sdk::{
+    contract, contractimpl, symbol_short, Address, BytesN, Env, Map, Symbol, Val, Vec,
+};
 
 use crate::errors::ContractError;
 use crate::types::{
-    ArchivedRoundSummary, BetSide, ConfigChangeKind, ConfigChangePayload, DataKey,
-    OracleHeartbeatRecord, OraclePayload, PendingConfigChange, PrecisionCommitment,
-    PrecisionPrediction, Round, RoundArchiveStatus, RoundMode, UserPosition, UserStats,
+    AccessState, ArchivedRoundSummary, BetSide, ConfigChangeKind, ConfigChangePayload, DataKeyCore,
+    DataKeyScoped, DeviationReferenceMode, FeeModel, GovAction, GovProposal, LeaderboardEntry,
+    MarketSnapshot, MultiFeedPayload, OneSidedPolicy, OracleHeartbeatRecord, OraclePayload,
+    OracleQuorumConfig, OracleRotationProposal, PendingConfigChange, PolicyAction,
+    PrecisionPrediction, PriceSample, ProtocolHealthStatus, ProtocolStatus, Round,
+    RoundArchiveStatus, RoundPhase, RoundPoolStats, RoundStatus, RoundTemplate, RuntimeMode,
+    SeasonArchive, SeasonLeaderboardEntry, SimulationResult, UserPosition, UserRoundOutcome,
+    UserStats,
 };
 
-// â”€â”€â”€ Economic control limits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-/// Minimum allowed value when setting an economic cap to prevent zero-value lockouts.
-const MIN_CAP_VALUE: i128 = 1;
-/// Upper bound on the minimum-participants config to prevent unbounded gas in resolution.
-const MAX_MIN_PARTICIPANTS: u32 = 10_000;
-const DEFAULT_MAX_PRECISION_PARTICIPANTS: u32 = 1_000;
-const MAX_PRECISION_PARTICIPANTS_LIMIT: u32 = 10_000;
-/// Maximum number of entries returned per page by paginated query methods,
-/// regardless of the caller-requested `limit` (Issue #139).
-const MAX_PAGE_SIZE: u32 = 100;
+use crate::common::{
+    BPS_DENOMINATOR, CONFIG_TIMELOCK_LEDGERS, CURRENT_SCHEMA_VERSION, DEFAULT_ARCHIVE_RETENTION,
+    DEFAULT_BET_WINDOW_LEDGERS, DEFAULT_MAX_PRECISION_PARTICIPANTS, DEFAULT_ORACLE_STALE_THRESHOLD,
+    DEFAULT_RUN_WINDOW_LEDGERS, MAX_ARCHIVE_RETENTION, MAX_BET_WINDOW_LEDGERS,
+    MAX_MIN_PARTICIPANTS, MAX_ORACLE_DEVIATION_BPS, MAX_ORACLE_STALE_THRESHOLD, MAX_PAGE_SIZE,
+    MAX_PRECISION_PARTICIPANTS_LIMIT, MAX_PROTOCOL_FEE_BPS, MAX_RUN_WINDOW_LEDGERS,
+    MAX_START_PRICE, MIN_ARCHIVE_RETENTION, MIN_CAP_VALUE, MIN_ORACLE_STALE_THRESHOLD,
+    MIN_START_PRICE, TTL_BUMP_AMOUNT, TTL_BUMP_THRESHOLD,
+};
 
-// â”€â”€â”€ Oracle heartbeat limits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const DEFAULT_ORACLE_STALE_THRESHOLD: u64 = 3_600; // 1 hour
-const MIN_ORACLE_STALE_THRESHOLD: u64 = 60; // 1 minute
-const MAX_ORACLE_STALE_THRESHOLD: u64 = 86_400; // 24 hours
+// ─── Oracle rotation expiry ───────────────────────────────────────────────────
+const MIN_ROTATION_EXPIRY_SECONDS: u64 = 60; // 1 minute minimum
+/// Minimum delay between proposing and accepting an oracle rotation.
+/// Prevents quiet takeovers: even with admin key compromise, a 1-hour window
+/// gives operators and monitoring dashboards time to react.
+const MIN_ROTATION_DELAY_SECONDS: u64 = 3_600; // 1 hour
 
-const DEFAULT_BET_WINDOW_LEDGERS: u32 = 6;
-const DEFAULT_RUN_WINDOW_LEDGERS: u32 = 12;
-const MAX_BET_WINDOW_LEDGERS: u32 = 1_440;
-const MAX_RUN_WINDOW_LEDGERS: u32 = 2_880;
+const ROUND_MODE_UPDOWN: u32 = 0;
+const ROUND_MODE_PRECISION: u32 = 1;
+const PAYOUT_OUTCOME_LOSS: u32 = 0;
+const PAYOUT_OUTCOME_WIN: u32 = 1;
+const PAYOUT_OUTCOME_REFUND: u32 = 2;
 
-// â”€â”€â”€ Oracle deviation guardrails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-/// Maximum allowed basis points for oracle deviation is bounded to avoid absurd configs.
-/// 100_000 bp = 1000% deviation (effectively "off", but still explicit).
-const MAX_ORACLE_DEVIATION_BPS: u32 = 100_000;
-
-// â”€â”€â”€ Storage schema versioning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const CURRENT_SCHEMA_VERSION: u32 = 2;
-// â”€â”€â”€ Start-price bounds (Issue #119) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-/// Minimum start price in protocol units â€” prevents zero-value and dust rounds.
-const MIN_START_PRICE: u128 = 1;
-/// Maximum start price in protocol units â€” guards against overflow in payout math.
-const MAX_START_PRICE: u128 = 1_000_000_000_000_000_000;
-// â”€â”€â”€ Storage TTL Lifecycle Limits (Issue #142) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-/// Minimum remaining ledgers before a persistent entry is extended.
-const TTL_BUMP_THRESHOLD: u32 = 17_280; // ~1 day at 5-second ledgers
-/// Amount of ledgers to extend a persistent entry to when below threshold.
-const TTL_BUMP_AMOUNT: u32 = 518_400; // ~30 days at 5-second ledgers
-
-/// Maximum archived round summaries retained on-chain (FIFO pruning).
-const MAX_ARCHIVED_ROUNDS: u32 = 128;
-/// Ledgers to wait before a scheduled critical config change may be applied (~2 hours).
-const CONFIG_TIMELOCK_LEDGERS: u32 = 1440;
+use crate::admin;
+use crate::betting;
+use crate::common;
+use crate::config;
+use crate::leaderboard;
+use crate::queries;
+use crate::settlement;
 
 #[contract]
 pub struct VirtualTokenContract;
@@ -444,16 +438,36 @@ impl VirtualTokenContract {
 
     // â”€â”€â”€ Oracle heartbeat and liveness (on-chain health tracking) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// Records an oracle heartbeat (oracle only).
-    /// `status`: 0 = active, 1 = degraded, 2 = offline.
-    /// Stores current ledger timestamp; emits `("oracle", "heartbeat")`.
-    pub fn update_oracle_heartbeat(env: Env, status: u32) -> Result<(), ContractError> {
-        Self::_require_supported_schema(&env)?;
-        if status > 2 {
-            return Err(ContractError::InvalidOracleStatus);
+        // Mandatory delay before acceptance (prevents quiet takeovers)
+        let earliest_accept = proposal
+            .proposed_at
+            .checked_add(MIN_ROTATION_DELAY_SECONDS)
+            .ok_or(ContractError::Overflow)?;
+        if current_ts < earliest_accept {
+            #[allow(deprecated)]
+            env.events().publish(
+                (symbol_short!("oracle"), symbol_short!("early")),
+                (proposal.new_oracle.clone(), current_ts, earliest_accept),
+            );
+            return Err(ContractError::RotationDelayNotElapsed);
         }
-        Self::_extend_persistent_ttl(&env, &DataKey::Oracle);
-        let oracle: Address = env
+
+        if current_ts > proposal.expires_at {
+            env.storage().persistent().remove(&key);
+            #[allow(deprecated)]
+            env.events().publish(
+                (symbol_short!("oracle"), symbol_short!("expired")),
+                (
+                    proposal.new_oracle,
+                    proposal.proposed_at,
+                    proposal.expires_at,
+                ),
+            );
+            return Err(ContractError::NoPendingRotation);
+        }
+
+        let oracle_key = DataKeyCore::Oracle;
+        let previous: Address = env
             .storage()
             .persistent()
             .get(&DataKey::Oracle)
@@ -629,7 +643,12 @@ impl VirtualTokenContract {
         timelock_ledgers: u32,
         dual_approval_required: bool,
     ) -> Result<(), ContractError> {
-        governance::establish_constitution(env, veto_window_ledgers, timelock_ledgers, dual_approval_required)
+        governance::establish_constitution(
+            env,
+            veto_window_ledgers,
+            timelock_ledgers,
+            dual_approval_required,
+        )
     }
 
     /// Returns the on-chain constitution metadata, if established.
@@ -642,18 +661,26 @@ impl VirtualTokenContract {
         env: Env,
         proposer: Address,
         parameter_name: Symbol,
-        new_value: Bytes,
+        new_value: i128,
     ) -> Result<u64, ContractError> {
         governance::propose_amendment(env, proposer, parameter_name, new_value)
     }
 
     /// Vetoes a pending amendment before its veto window expires.
-    pub fn veto_amendment(env: Env, vetoer: Address, amendment_id: u64) -> Result<(), ContractError> {
+    pub fn veto_amendment(
+        env: Env,
+        vetoer: Address,
+        amendment_id: u64,
+    ) -> Result<(), ContractError> {
         governance::veto_amendment(env, vetoer, amendment_id)
     }
 
     /// Activates an amendment after timelock expires.
-    pub fn activate_amendment(env: Env, activator: Address, amendment_id: u64) -> Result<(), ContractError> {
+    pub fn activate_amendment(
+        env: Env,
+        activator: Address,
+        amendment_id: u64,
+    ) -> Result<(), ContractError> {
         governance::activate_amendment(env, activator, amendment_id)
     }
 
@@ -790,14 +817,9 @@ impl VirtualTokenContract {
         )
     }
 
-    /// Returns a pending timelocked config change for the given kind, if any.
-    pub fn get_pending_config_change(
-        env: Env,
-        kind: ConfigChangeKind,
-    ) -> Option<PendingConfigChange> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::PendingConfigChange(kind))
+    /// Schedules a timelocked update to the oracle timestamp skew (admin only).
+    pub fn schedule_oracle_timestamp_skew(env: Env, seconds: u64) -> Result<(), ContractError> {
+        config::schedule_oracle_timestamp_skew(env, seconds)
     }
 
     /// Applies a scheduled critical config change after its activation ledger (any caller).
@@ -1243,12 +1265,15 @@ impl VirtualTokenContract {
             }
         }
 
-        // Single read of the active round
-        let round: Round = env
-            .storage()
-            .persistent()
-            .get(&DataKey::ActiveRound)
-            .ok_or(ContractError::NoActiveRound)?;
+    /// Resolves the active round using a multi-feed oracle payload with
+    /// median settlement and quorum-based outlier rejection.
+    ///
+    /// Requires `OracleQuorumConfig` to be configured by the admin before
+    /// this path is available. The legacy single-oracle `resolve_round`
+    /// remains available independently.
+    pub fn resolve_round_multi(env: Env, payload: MultiFeedPayload) -> Result<(), ContractError> {
+        settlement::resolve_round_multi(env, payload)
+    }
 
         // Enforce per-user round exposure cap
         if let Some(max_exposure) = env
@@ -2404,16 +2429,12 @@ impl VirtualTokenContract {
 
         env.storage().persistent().remove(&key);
 
-        // Emit claim event
-        // Topic: ("claim", "winnings")
-        // Payload: (user: Address, amount: i128)
-        #[allow(deprecated)]
-        env.events().publish(
-            (symbol_short!("claim"), symbol_short!("winnings")),
-            (user, pending),
-        );
-
-        Ok(pending)
+    pub fn get_updown_positions_page(
+        env: Env,
+        offset: u32,
+        limit: u32,
+    ) -> Vec<(Address, UserPosition)> {
+        queries::get_updown_positions_page(env, offset, limit)
     }
 
     /// Records refunds when price unchanged â€” indexed variant.
@@ -2920,9 +2941,10 @@ impl VirtualTokenContract {
         Ok(())
     }
 
-    /// Bumps/extends the TTL of the given persistent storage key if its remaining TTL
-    /// is less than the threshold. Enforces rent policy (Issue #142).
-    fn _extend_persistent_ttl(env: &Env, key: &DataKey) {
+    fn _extend_persistent_ttl<T: soroban_sdk::IntoVal<soroban_sdk::Env, soroban_sdk::Val>>(
+        env: &Env,
+        key: &T,
+    ) {
         if env.storage().persistent().has(key) {
             env.storage()
                 .persistent()
